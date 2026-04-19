@@ -1,0 +1,503 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- 父项目配置，继承Spring Boot的默认配置 -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.0.5</version>
+    </parent>
+
+    <groupId>com.g2rain</groupId>
+    <artifactId>g2rain-gateway-webmvc</artifactId>
+    <version>${revision}</version>
+    <packaging>jar</packaging>
+
+    <name>G2rain Gateway Webmvc</name>
+
+    <description>
+        A centralized gateway for the G2rain SaaS platform, responsible for routing, forwarding, and filtering
+        all microservice API requests. It provides unified access control, security filtering, and traffic management to
+        ensure secure and efficient communication between clients and backend services.
+    </description>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <organization>
+        <name>G2rain</name>
+        <url>http://www.g2rain.com/</url>
+    </organization>
+
+    <developers>
+        <developer>
+            <name>Jagger</name>
+            <email>g2rain_developer@163.com</email>
+            <organization>G2rain</organization>
+            <organizationUrl>http://www.g2rain.com/</organizationUrl>
+        </developer>
+        <developer>
+            <id>alpha</id>
+            <name>Alpha</name>
+            <organization>G2rain</organization>
+            <organizationUrl>http://www.g2rain.com/</organizationUrl>
+        </developer>
+    </developers>
+
+    <properties>
+        <revision>1.0.0</revision>
+        <!--
+            spring boot 4.0.5 引入的是3.1.0 但是3.1.0 有漏洞, 所以升级到3.1.1,
+            后续如果升级spring boot 版本, 酌情是否删掉这个属性
+        -->
+        <jackson-bom.version>3.1.1</jackson-bom.version>
+        <spring.cloud.version>2025.1.1</spring.cloud.version>
+        <spring.alibaba.cloud.version>2025.1.0.0</spring.alibaba.cloud.version>
+        <commons.fileupload.version>1.6.0</commons.fileupload.version>
+        <commons.lang3.version>3.20.0</commons.lang3.version>
+        <caffeine.version>3.2.3</caffeine.version>
+        <nimbus.jose.jwt.version>10.9</nimbus.jose.jwt.version>
+        <g2rain.common.version>1.0.4</g2rain.common.version>
+        <springdoc.openapi.version>3.0.2</springdoc.openapi.version>
+        <g2rain.feign.plugin.version>1.0.0</g2rain.feign.plugin.version>
+        <g2rain.cache.sync.version>1.0.0</g2rain.cache.sync.version>
+        <g2rain.stream.redis.version>1.0.0</g2rain.stream.redis.version>
+        <g2rain.infra.api.version>1.0.0</g2rain.infra.api.version>
+        <g2rain.basis.api.version>1.0.0</g2rain.basis.api.version>
+        <maven.enforcer.plugin.version>3.6.2</maven.enforcer.plugin.version>
+        <maven.checkstyle.plugin.version>3.6.0</maven.checkstyle.plugin.version>
+        <maven.pmd.plugin.version>3.28.0</maven.pmd.plugin.version>
+        <spotbugs.maven.plugin.version>4.9.8.3</spotbugs.maven.plugin.version>
+        <jacoco.maven.plugin.version>0.8.14</jacoco.maven.plugin.version>
+        <flatten.maven.plugin.version>1.7.3</flatten.maven.plugin.version>
+        <!-- Jib Maven 插件版本 -->
+        <jib.maven.plugin.version>3.5.1</jib.maven.plugin.version>
+        <!-- 控制 maven.build.timestamp 的时间格式, 用于镜像构建标签 -->
+        <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss</maven.build.timestamp.format>
+        <maven.compiler.release>25</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring.cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.alibaba.cloud</groupId>
+                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+                <version>${spring.alibaba.cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!--
+                spring-cloud-starter-openfeign 依赖版本漏洞, 所以引入这个版本控制,
+                后续整体升级 Spring Cloud 版本, 看看是否还需要这样版本的依赖
+                commons-fileupload 低版本存在漏洞
+                commons-lang3 版本过低, 与 springdoc 依赖的版本不一致
+            -->
+            <dependency>
+                <groupId>commons-fileupload</groupId>
+                <artifactId>commons-fileupload</artifactId>
+                <version>${commons.fileupload.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons.lang3.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.ben-manes.caffeine</groupId>
+                <artifactId>caffeine</artifactId>
+                <version>${caffeine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.nimbusds</groupId>
+                <artifactId>nimbus-jose-jwt</artifactId>
+                <version>${nimbus.jose.jwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.g2rain</groupId>
+                <artifactId>g2rain-common</artifactId>
+                <version>${g2rain.common.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.g2rain</groupId>
+                <artifactId>g2rain-starter-feign-plus</artifactId>
+                <version>${g2rain.feign.plugin.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.g2rain</groupId>
+                <artifactId>g2rain-starter-cache-sync</artifactId>
+                <version>${g2rain.cache.sync.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.g2rain</groupId>
+                <artifactId>g2rain-starter-stream-redis</artifactId>
+                <version>${g2rain.stream.redis.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.g2rain</groupId>
+                <artifactId>g2rain-infra-api</artifactId>
+                <version>${g2rain.infra.api.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.g2rain</groupId>
+                <artifactId>g2rain-basis-api</artifactId>
+                <version>${g2rain.basis.api.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                <version>${springdoc.openapi.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-gateway-server-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-opentelemetry</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>context-propagation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-suite</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.nimbusds</groupId>
+            <artifactId>nimbus-jose-jwt</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.g2rain</groupId>
+            <artifactId>g2rain-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.g2rain</groupId>
+            <artifactId>g2rain-starter-feign-plus</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.g2rain</groupId>
+            <artifactId>g2rain-starter-cache-sync</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.g2rain</groupId>
+            <artifactId>g2rain-starter-stream-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.g2rain</groupId>
+            <artifactId>g2rain-infra-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.g2rain</groupId>
+            <artifactId>g2rain-basis-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <!-- 生成最终包名格式为[artifactId]-[version].jar(如my-app-1.0.0.jar) -->
+        <finalName>${project.artifactId}-${project.version}</finalName>
+
+        <!-- 声明资源处理规则的配置项, 仅定义基础规则(路径、包含/排除文件), 必须显式声明以覆盖默认资源目录 -->
+        <resources>
+            <!-- 定义文件处理规则 -->
+            <resource>
+                <!-- 指定资源文件目录(默认src/main/resources) -->
+                <directory>src/main/resources</directory>
+                <!-- 启用资源过滤, 替换文件中的${property}占位符为实际值 -->
+                <filtering>true</filtering>
+                <!-- 仅处理匹配的文件类型(.yml/.properties/.xml), 其他格式忽略 -->
+                <includes>
+                    <include>**/*.yml</include>
+                    <include>**/*.properties</include>
+                    <include>**/*.xml</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <includes>
+                    <include>**/*.txt</include>
+                </includes>
+            </resource>
+        </resources>
+
+        <plugins>
+            <!-- 编译插件，用于编译Java源代码 -->
+            <!-- 使用方式: mvn compiler:compile -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- 指定目标Java版本(如25), 替代传统的<source>和<target>, 确保字节码与指定版本兼容 -->
+                    <release>${maven.compiler.release}</release>
+                    <!-- 指定编码格式 -->
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                    <compilerArgs>
+                        <!-- 启用方法参数元数据保留, 支持反射获取参数名(如WebFlux参数绑定) -->
+                        <arg>-parameters</arg>
+                    </compilerArgs>
+                    <!-- 配置注解处理器依赖路径 -->
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
+            <!-- Spring Boot Maven插件，用于打包可执行jar文件 -->
+            <!-- 使用方式: mvn spring-boot:repackage -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- 排除Lombok等编译期依赖, 避免打入运行时包(Lombok仅需编译阶段) -->
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <!-- 核心目标:将普通JAR转换为可执行JAR(含依赖和启动脚本) -->
+                            <goal>repackage</goal>
+                            <!-- 生成build-info.properties文件, 记录构建元数据(如时间/版本) -->
+                            <goal>build-info</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- 使用 Jib 构建 Docker 镜像 -->
+            <plugin>
+                <groupId>com.google.cloud.tools</groupId>
+                <artifactId>jib-maven-plugin</artifactId>
+                <version>${jib.maven.plugin.version}</version>
+                <configuration>
+                    <!-- 基础镜像，根据实际 JDK 版本选择 -->
+                    <from>
+                        <image>docker://eclipse-temurin:25-jre</image>
+                    </from>
+                    <!-- 目标镜像名称 -->
+                    <to>
+                        <image>g2rain/g2rain-gateway-webmvc:${project.version}</image>
+                    </to>
+                    <!-- 容器运行配置 -->
+                    <container>
+                        <mainClass>com.g2rain.gateway.Application</mainClass>
+                        <ports>
+                            <port>8080</port>
+                        </ports>
+                    </container>
+                </configuration>
+            </plugin>
+
+            <!-- 单元测试插件 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>
+                        -XX:+EnableDynamicAgentLoading -Xshare:off
+                    </argLine>
+                </configuration>
+            </plugin>
+
+            <!-- Maven强制执行插件，用于强制执行项目规则 -->
+            <!-- 使用方式: mvn enforcer:enforce -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>${maven.enforcer.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>enforce-java</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <!-- 指定必须使用 JDK 25 -->
+                                <requireJavaVersion>
+                                    <version>[25,)</version>
+                                </requireJavaVersion>
+                                <!-- 检查依赖冲突 -->
+                                <requireUpperBoundDeps/>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Maven Checkstyle插件，用于检查代码风格 -->
+            <!-- 使用方式: mvn checkstyle:check -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>${maven.checkstyle.plugin.version}</version>
+                <configuration>
+                    <!-- 使用 Google 代码检查规范 -->
+                    <configLocation>google_checks.xml</configLocation>
+                    <!-- 在控制台输出结果 -->
+                    <consoleOutput>true</consoleOutput>
+                    <!-- 出现违反代码规范时构建失败 -->
+                    <failsOnError>true</failsOnError>
+                </configuration>
+            </plugin>
+
+            <!-- Maven PMD插件，用于检测代码潜在问题 -->
+            <!-- 使用方式: mvn pmd:check -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-pmd-plugin</artifactId>
+                <version>${maven.pmd.plugin.version}</version>
+                <configuration>
+                    <targetJdk>${maven.compiler.release}</targetJdk>
+                    <!-- 出现违反规则时构建失败 -->
+                    <failOnViolation>true</failOnViolation>
+                    <!-- 某些版本需要通过这种方式支持预览 -->
+                    <typeResolution>true</typeResolution>
+                </configuration>
+            </plugin>
+
+            <!-- SpotBugs Maven插件，用于静态代码分析，查找潜在bug -->
+            <!-- 使用方式: mvn spotbugs:check -->
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>${spotbugs.maven.plugin.version}</version>
+                <configuration>
+                    <!-- 出现 bug 时构建失败 -->
+                    <failOnError>true</failOnError>
+                </configuration>
+            </plugin>
+
+            <!-- JaCoCo Maven插件，用于代码覆盖率检查 -->
+            <!-- 使用方式:
+                 1. mvn clean test (执行测试并生成覆盖率数据)
+                 2. mvn jacoco:report (生成覆盖率报告) -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.maven.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <!-- 准备 JaCoCo 运行时代理 -->
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <!-- 生成代码覆盖率报告 -->
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- 生成一个“扁平化”的 POM 文件 -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>${flatten.maven.plugin.version}</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

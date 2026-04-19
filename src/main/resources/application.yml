@@ -1,0 +1,104 @@
+# 启动示例: java -jar -Dspring.profiles.active=test -Dserver.port=8081 -Dnacos.server-addr=10.0.1.1:8848,10.0.1.2:8848 g2rain-iam-0.1.1.jar
+server:
+  port: ${SERVER_PORT:8083}
+  tomcat:
+    max-http-post-size: -1
+
+spring:
+  threads:
+    virtual:
+      enabled: true
+  application:
+    name: g2rain-gateway
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  servlet:
+    multipart:
+      max-file-size: -1
+      max-request-size: -1
+
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}                  # nacos服务器地址
+      # 注册中心
+      discovery:
+        username: ${SPRING_CLOUD_NACOS_DISCOVERY_USERNAME:nacos}        # 注册中心用户
+        password: ${SPRING_CLOUD_NACOS_DISCOVERY_PASSWORD:g2rain_nacos} # 注册中心密码
+        namespace: ${SPRING_CLOUD_NACOS_DISCOVERY_NAMESPACE:dev}        # 隔离命名空间
+        group: g2rain                                                   # 服务分组, 微服务实例归属类别
+        service: ${spring.application.name}                             # 服务名，方便注册和发现
+        heart-beat-interval: 5000                                       # 服务实例心跳间隔时间(毫秒）
+        heart-beat-timeout: 15000                                       # 服务实例心跳超时时间(毫秒）
+      # 配置中心
+      config:
+        username: ${SPRING_CLOUD_NACOS_CONFIG_USERNAME:nacos}           # 配置中心用户
+        password: ${SPRING_CLOUD_NACOS_CONFIG_PASSWORD:g2rain_nacos}    # 配置中心密码
+        namespace: ${SPRING_CLOUD_NACOS_CONFIG_NAMESPACE:dev}           # 隔离命名空间
+        group: ${spring.application.name}                               # 配置分组, 默认 DEFAULT_GROUP
+        file-extension: yaml                                            # 配置文件的后缀名
+        refresh-enabled: true                                           # 是否开启配置动态刷新
+        max-retry: 3                                                    # 最大充实次数
+        timeout: 5000                                                   # 获取配置的超时时间(毫秒)
+
+    # syncer 消息通道
+    stream:
+      default-binder: redis
+      input-bindings: input
+      bindings:
+        input:
+          destination: g2rain-syncer
+
+  # 外链 nacos 的配置中心的配置文件
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yml?group=${spring.application.name}
+      - optional:nacos:g2rain-token-keypair.yml?group=g2rain
+
+  # Kafka：关闭时不要写 bootstrap-servers，避免自动配置去连集群；要开启时在 Nacos 等环境补上完整配置
+  kafka:
+    enabled: false
+    # 开启示例（放到 Nacos 的 g2rain-gateway.yml 等）:
+    # bootstrap-servers: your-kafka:9092
+    # producer:
+    #   key-serializer: org.apache.kafka.common.serialization.StringSerializer
+    #   value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+springdoc:
+  swagger-ui:
+    config-url: /swagger-ui-config
+    disable-swagger-default-url: true
+    # 设置为 0 或 -1。0 表示不展开，-1 表示完全隐藏 Schemas 部分
+    default-models-expand-depth: -1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - info
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0              # 100% 采样（开发/生产初期建议，后续按需降低）
+    propagation:
+      type:
+        - W3C                       # 强制使用 W3C 标准，确保跨语言/平台兼容性
+    baggage:
+      remote-fields:
+        - requestId                 # 允许这个字段跨微服务通过 HTTP Header 传输
+      correlation:
+        fields:
+          - requestId               #【核心】自动将这个字段同步到日志 MDC (%X{requestId})
+  otlp:
+    metrics:
+      export:
+        enabled: false              # 关闭指标导出
+    tracing:
+      export:
+        enabled: false              # 关闭链路导出
+
+# 限制网关的请求体的大小
+gateway:
+  limits:
+    request-body-max-size: 10MB
