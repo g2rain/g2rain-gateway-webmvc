@@ -49,7 +49,38 @@ public final class Constants {
      */
     public static final String CLIENT_PROOF_JWT_TYPE = "dpop+jwt";
 
+    /**
+     * 路由匹配命中后, 缓存路由上下文的键
+     */
     public static final String ROUTE_CONTEXT_PATH = "route.context.path";
 
+    /**
+     * 路由匹配命中后, 缓存路由标识的键
+     */
+    public static final String ROUTE_INTERNAL_ID = "route.internal.id";
+
+    /**
+     * 请求标识的键
+     */
     public static final String REQUEST_ID = "requestId";
+
+    /**
+     * 接口文档路径
+     */
+    public static final String DOC_PATH = "/v3/api-docs";
+
+    /**
+     * 业务服务接口文档路径
+     */
+    public static final String DOC_PATH_FORMAT = "/%s" + DOC_PATH;
+
+    /**
+     * 请求参数缓存键
+     */
+    public static final String REQ_BODY_ATTRIBUTE = "g2rain.gateway.request.body";
+
+    /**
+     * 空响应结果
+     */
+    public static final String EMPTY_RSP_BODY = "{}";
 }

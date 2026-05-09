@@ -43,16 +43,18 @@ public class ErrorMessageStorage extends ErrorMessageRegistry {
 
     /**
      * 错误码与本地化消息的缓存映射
+     * 外层 `key` : 错误编码
+     * 内层 `key` : 区域语言编码
+     * 内层 `val` : 错误信息
      */
-    private static final Map<String, String> MESSAGE_CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, Map<String, String>> MESSAGE_CACHE = new ConcurrentHashMap<>();
 
     /**
      * 加载所有错误消息，默认实现为空（NOP）。
      */
     @Override
     public void load() {
-        I18nMessageSelectDto selectDto = new I18nMessageSelectDto();
-        Result<List<I18nMessageVo>> result = errorMessageClient.selectList(selectDto);
+        Result<List<I18nMessageVo>> result = errorMessageClient.selectList(new I18nMessageSelectDto());
         if (Objects.isNull(result) || !result.isSuccess()) {
             return;
         }
@@ -63,14 +65,16 @@ public class ErrorMessageStorage extends ErrorMessageRegistry {
         }
 
         for (I18nMessageVo message : messages) {
-            StringBuilder key = new StringBuilder(message.getMessageCode());
-            key.append("_").append(message.getLanguageCode());
-            String region = message.getRegionCode();
-            if (Strings.isNotBlank(region)) {
-                key.append("_").append(region);
-            }
+            String locale = new Locale.Builder()
+                .setLanguage(message.getLanguageCode())
+                .setRegion(message.getRegionCode())
+                .build()
+                .toLanguageTag();
 
-            MESSAGE_CACHE.put(key.toString(), message.getMessageText());
+            MESSAGE_CACHE.computeIfAbsent(
+                message.getMessageCode(),
+                _ -> new ConcurrentHashMap<>()
+            ).put(locale, message.getMessageText());
         }
     }
 
@@ -85,35 +89,38 @@ public class ErrorMessageStorage extends ErrorMessageRegistry {
      */
     @Override
     public String getMessage(String errorCode, String locale) {
+        // 错误编码不存在, 直接返回
         if (Strings.isBlank(errorCode)) {
             return null;
         }
 
+        Map<String, String> innerMap = MESSAGE_CACHE.get(errorCode);
+        if (Collections.isEmpty(innerMap)) {
+            return null;
+        }
+
+        Locale raw;
         if (Strings.isBlank(locale)) {
-            locale = Locale.getDefault().toString();
+            raw = Locale.getDefault();
+        } else {
+            raw = Locale.forLanguageTag(locale.trim().replace('_', '-'));
         }
 
-        // 只分成最多 3 部分，避免变体干扰
-        String[] parts = locale.split("[_-]", 3);
-        String language = parts[0];
-        String country = null;
-        if (parts.length > 1) {
-            country = parts[1];
+        // 获取到标准的语言-区域字符串值
+        locale = new Locale.Builder()
+            .setLanguage(raw.getLanguage())
+            .setRegion(raw.getCountry())    // 无地区时要有兜底策略
+            .build().toLanguageTag();       // 作为缓存内层 key
+
+        // 获取语言-区域对应的错误信息
+        String result = innerMap.get(locale);
+
+        // 获取语言对应的错误信息
+        if (Objects.isNull(result)) {
+            result = innerMap.get(raw.getLanguage());
         }
 
-        // 构建 baseKey
-        String baseKey = errorCode + "_" + language;
-        // 优先查找完整 locale (language + "_" + country)
-        if (Strings.isNotBlank(country)) {
-            String fullKey = baseKey + "_" + country;
-            String msg = MESSAGE_CACHE.get(fullKey);
-            if (Strings.isNotBlank(msg)) {
-                return msg;
-            }
-        }
-
-        // 尝试仅语言查找
-        return MESSAGE_CACHE.get(baseKey);
+        return result;
     }
 
     @Override
@@ -128,26 +135,47 @@ public class ErrorMessageStorage extends ErrorMessageRegistry {
 
     @Override
     protected @NonNull String getKey(@NonNull LocalizedErrorMessage value) {
-        return value.getErrorCode() + "_" + value.getLocale();
+        return value.getErrorCode() + "#" + value.getLocale();
     }
 
     @Override
     protected void create(@NonNull String key, LocalizedErrorMessage value) {
-        MESSAGE_CACHE.put(key, value.getMessageTemplate());
+        MESSAGE_CACHE.computeIfAbsent(value.getErrorCode(), _ -> new ConcurrentHashMap<>())
+            .put(value.getLocale(), value.getMessageTemplate());
     }
 
     @Override
     protected void delete(@NonNull String key) {
-        MESSAGE_CACHE.remove(key);
+        int sep = key.indexOf('#');
+        if (sep < 0) {
+            return;
+        }
+
+        String errorCode = key.substring(0, sep);
+        String locale = key.substring(sep + 1);
+        MESSAGE_CACHE.computeIfPresent(errorCode, (_, inner) -> {
+            inner.remove(locale);
+            return inner.isEmpty() ? null : inner;
+        });
     }
 
     @Override
     protected void update(@NonNull String key, LocalizedErrorMessage value) {
-        MESSAGE_CACHE.put(key, value.getMessageTemplate());
+        create(key, value);
     }
 
     @Override
     protected String get(@NonNull String key) {
-        return MESSAGE_CACHE.get(key);
+        int sep = key.indexOf('#');
+        if (sep < 0) {
+            return null;
+        }
+
+        Map<String, String> inner = MESSAGE_CACHE.get(key.substring(0, sep));
+        if (Objects.isNull(inner)) {
+            return null;
+        }
+
+        return inner.get(key.substring(sep + 1));
     }
 }

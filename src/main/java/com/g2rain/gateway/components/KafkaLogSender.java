@@ -2,7 +2,7 @@ package com.g2rain.gateway.components;
 
 import com.g2rain.common.json.JsonCodec;
 import com.g2rain.common.json.JsonCodecBuilder;
-import com.g2rain.gateway.model.logger.JsonLog;
+import com.g2rain.gateway.model.event.GatewayEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,22 +47,22 @@ public class KafkaLogSender {
      * 发送一条日志消息到指定 topic。
      * <p>关闭或未装配 {@link KafkaTemplate} 时立即返回，调用方无需判空。</p>
      *
-     * @param topic   目标 topic
-     * @param jsonLog 载荷
+     * @param topic        目标 topic
+     * @param gatewayEvent 载荷
      */
-    public void send(String topic, JsonLog jsonLog) {
-        if (!kafkaEnabled) {
-            return;
-        }
+    public void send(String topic, GatewayEvent gatewayEvent) {
+//        if (!kafkaEnabled) {
+//            return;
+//        }
 
-        KafkaTemplate<String, String> template = kafkaTemplateProvider.getIfAvailable();
-        if (Objects.isNull(template)) {
-            return;
-        }
+//        KafkaTemplate<String, String> template = kafkaTemplateProvider.getIfAvailable();
+//        if (Objects.isNull(template)) {
+//            return;
+//        }
 
         try {
-            // log.info("message_id:{}", "");
-            template.send(topic, JSON.obj2str(jsonLog));
+            log.info(JSON.obj2str(gatewayEvent));
+           // template.send(topic, JSON.obj2str(gatewayEvent));
         } catch (Exception e) {
             log.error(e.getMessage(), e);
         }
