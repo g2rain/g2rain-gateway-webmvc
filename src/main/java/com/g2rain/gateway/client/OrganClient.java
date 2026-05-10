@@ -8,6 +8,6 @@ import org.springframework.cloud.openfeign.FeignClient;
  * @author alpha
  * @since 2026/4/13
  */
-@FeignClient(name = "g2rain-basis", contextId = "g2rainOrganClient", path = "/organ")
+@FeignClient(name = "g2rain-basis", contextId = "organClient", path = "/organ")
 public interface OrganClient extends OrganApi {
 }

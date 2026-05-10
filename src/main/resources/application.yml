@@ -18,6 +18,12 @@ spring:
       max-request-size: -1
 
   cloud:
+    gateway:
+      server:
+        webmvc:
+          function:
+            enabled: false
+
     nacos:
       server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}                  # nacos服务器地址
       # 注册中心

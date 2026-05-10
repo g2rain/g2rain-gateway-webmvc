@@ -12,201 +12,515 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
- * 规则编译器：将输入规则定义编译为运行期只读索引表
- * <p>
- * 编译阶段会完成以下工作：
- * <ul>
- *     <li>路径标准化与 PathPattern 预解析</li>
- *     <li>HTTP 方法集合转 methodMask（位运算友好）</li>
- *     <li>按 exact / buckets / global 三层索引分桶</li>
- *     <li>按优先级与模式特异性做稳定排序</li>
- * </ul>
- * </p>
+ * 规则编译器
  *
- * <p>
- * 容错原则：
- * <ul>
- *     <li>脏规则（空 path、空 target、非法 path）会被跳过</li>
- *     <li>methods 中非法 token 会被忽略，不中断整次编译</li>
- * </ul>
- * </p>
+ * <p>该类负责把外部规则定义转换为 matcher 可直接读取的运行期结构，
+ * 同时提供单条规则的增量 upsert/remove 能力</p>
  *
+ * @param <T> 业务目标对象类型
  * @author alpha
  * @since 2026/4/16
  */
 public class RuleCompiler<T> {
-
     /**
-     * 全局兜底路径表达式
-     */
-    private static final String GLOBAL_PATTERN = "/**";
-    /**
-     * Spring 路径模式解析器（线程安全，可复用）
+     * Spring 路径模式解析器
      */
     private static final PathPatternParser PARSER = PathPatternParser.defaultInstance;
 
     /**
-     * 将原始规则列表编译为运行时规则表
-     * <p>
-     * 编译结果是不可变快照，适合被 {@link MatchEngine} 原子替换并并发读取
-     * </p>
+     * 规则排序器
      *
-     * @param rules 原始规则定义集合
-     * @return 编译完成的不可变规则表；当入参为空时返回空表
+     * <p>优先按路径特异性排序，若特异性相同，则按规则 ID 升序兜底</p>
+     */
+    private static final Comparator<MatchRule<?>> RULE_COMPARATOR = (left, right) -> {
+        int result = PathPattern.SPECIFICITY_COMPARATOR.compare(left.pattern(), right.pattern());
+        if (result != 0) {
+            return result;
+        }
+
+        return Comparator.nullsLast(Long::compareTo).compare(left.id(), right.id());
+    };
+
+    /**
+     * 全量编译规则集合
+     *
+     * @param rules 原始规则集合
+     * @return 编译后的运行期规则表
      */
     public RuleTable<T> compile(Collection<RuleDefinition<T>> rules) {
-        // 无规则直接返回共享空表，减少对象创建
         if (Collections.isEmpty(rules)) {
             return RuleTable.empty();
         }
 
-        // 三层中间索引：先用 List 收集，最后统一转数组
-        Map<String, List<MethodRule<T>>> exact = new HashMap<>();
-        Map<String, List<MethodRule<T>>> buckets = new HashMap<>();
-        List<MethodRule<T>> global = new ArrayList<>();
-
-        for (RuleDefinition<T> r : rules) {
-            // 跳过空规则、空 path、空 target，避免脏数据污染索引
-            if (Objects.isNull(r) || Strings.isBlank(r.path()) || Objects.isNull(r.target())) {
-                continue;
-            }
-
-            // 统一路径语义，确保编译期与运行期看到的是同一种 path
-            String normalizedPath = MatcherUtils.normalize(r.path());
-            PathPattern pattern;
-            try {
-                // 预解析 PathPattern，把解析成本前置到编译期
-                pattern = PARSER.parse(normalizedPath);
-            } catch (Exception ignored) {
-                // 单条非法 path 不应影响整批规则编译
-                continue;
-            }
-
-            // 把“字符串方法集合”编译成位掩码，运行期只做位运算
-            MethodRule<T> mr = new MethodRule<>(
-                parseMethodMask(r.methods()),
-                pattern,
-                r.target(),
-                r.priority()
-            );
-
-            String patternStr = pattern.getPatternString();
-
-            // 纯静态路径放入 exact，运行期可直接 O(1) 命中数组
-            if (!patternStr.contains("*") && !patternStr.contains("{")) {
-                exact.computeIfAbsent(patternStr, _ -> new ArrayList<>()).add(mr);
-                continue;
-            }
-
-            // /** 作为全局兜底，放入 global 链
-            if (GLOBAL_PATTERN.equals(patternStr)) {
-                global.add(mr);
-                continue;
-            }
-
-            // 其余动态路径按首段分桶，减少运行期候选规则数量
-            buckets.computeIfAbsent(MatcherUtils.firstSegment(patternStr), _ -> new ArrayList<>()).add(mr);
+        var methodBuckets = new HashMap<Integer, MutableBucket<T>>();
+        var anyMethodBucket = new MutableBucket<T>();
+        for (RuleDefinition<T> definition : rules) {
+            compileRule(definition).ifPresent(compiled -> addCompiledRule(
+                methodBuckets, anyMethodBucket, compiled
+            ));
         }
 
-        // 桶内提前排好顺序，运行期命中首个即返回
-        exact.replaceAll((_, v) -> sortRules(v));
-        buckets.replaceAll((_, v) -> sortRules(v));
-        sortRules(global);
+        var finalBuckets = new HashMap<Integer, RuleTable.PathIndex<T>>();
+        methodBuckets.forEach((m, b) -> finalBuckets.put(m, toPathIndex(sortBucket(b))));
+        return new RuleTable<>(Map.copyOf(finalBuckets), toPathIndex(sortBucket(anyMethodBucket)));
+    }
 
-        // copyOf 产出不可变 map，防止运行期被误改
-        return new RuleTable<>(
-            Map.copyOf(toArray(exact)),
-            Map.copyOf(toArray(buckets)),
-            toRuleArray(global)
+    /**
+     * 在现有规则表上插入或替换单条规则
+     *
+     * @param table      现有规则表
+     * @param definition 新规则定义
+     * @return 更新后的规则表
+     */
+    public RuleTable<T> upsert(RuleTable<T> table, RuleDefinition<T> definition) {
+        return compileRule(definition)
+            .map(compiled -> upsertCompiledRule(safeTable(table), compiled))
+            .orElseGet(() -> safeTable(table));
+    }
+
+    /**
+     * 在现有规则表上删除单条规则
+     *
+     * @param table      现有规则表
+     * @param definition 待删除规则定义
+     * @return 更新后的规则表
+     */
+    public RuleTable<T> remove(RuleTable<T> table, RuleDefinition<T> definition) {
+        return compileRule(definition)
+            .map(compiled -> removeCompiledRule(safeTable(table), compiled))
+            .orElseGet(() -> safeTable(table));
+    }
+
+    /**
+     * 描述规则会影响的版本 scope
+     *
+     * <p>该方法主要用于缓存局部失效计算</p>
+     *
+     * @param definition 规则定义
+     * @return 规则对应的 scope 描述
+     */
+    public Optional<RuleScope> describe(RuleDefinition<T> definition) {
+        return compileRule(definition).map(compiled -> new RuleScope(
+            compiled.slotType(), compiled.key(), compiled.rule().methodMask(), compiled.methodBits()
+        ));
+    }
+
+    /**
+     * 对外部传入的规则表做空值保护
+     *
+     * @param table 规则表
+     * @return 非空规则表
+     */
+    private RuleTable<T> safeTable(RuleTable<T> table) {
+        return Objects.nonNull(table) ? table : RuleTable.empty();
+    }
+
+    /**
+     * 将单条规则编译为内部结构
+     *
+     * @param definition 原始规则定义
+     * @return 编译后的内部规则对象
+     */
+    private Optional<CompiledRule<T>> compileRule(RuleDefinition<T> definition) {
+        if (Objects.isNull(definition) || Strings.isBlank(definition.path()) || Objects.isNull(definition.target())) {
+            return Optional.empty();
+        }
+
+        String normalizedPath = MatcherUtils.normalize(definition.path());
+        PathPattern pattern;
+        try {
+            pattern = PARSER.parse(normalizedPath);
+        } catch (Exception ignored) {
+            return Optional.empty();
+        }
+
+        int methodMask = parseMethodMask(definition.methods());
+        MatchRule<T> matchRule = new MatchRule<>(definition.id(), methodMask, pattern, definition.target());
+        if (!normalizedPath.contains("*") && !normalizedPath.contains("{")) {
+            return Optional.of(new CompiledRule<>(matchRule, SlotType.EXACT, normalizedPath, methodBits(methodMask)));
+        }
+
+        String bucketKey = MatcherUtils.getBucketKey(normalizedPath);
+        if ("/".equals(bucketKey)) {
+            return Optional.of(new CompiledRule<>(matchRule, SlotType.GLOBAL, bucketKey, methodBits(methodMask)));
+        }
+
+        return Optional.of(new CompiledRule<>(matchRule, SlotType.BUCKET, bucketKey, methodBits(methodMask)));
+    }
+
+    /**
+     * 将编译后的规则加入中间桶结构
+     *
+     * @param methodBuckets   按方法拆分的中间桶
+     * @param anyMethodBucket 全方法中间桶
+     * @param compiledRule    编译后的规则
+     */
+    private void addCompiledRule(Map<Integer, MutableBucket<T>> methodBuckets, MutableBucket<T> anyMethodBucket,
+                                 CompiledRule<T> compiledRule) {
+        if (compiledRule.isAnyMethod()) {
+            addToBucket(anyMethodBucket, compiledRule);
+            return;
+        }
+
+        for (int bit : compiledRule.methodBits()) {
+            MutableBucket<T> bucket = methodBuckets.computeIfAbsent(bit, _ -> new MutableBucket<>());
+            addToBucket(bucket, compiledRule);
+        }
+    }
+
+    /**
+     * 将规则加入指定桶
+     *
+     * @param bucket       目标桶
+     * @param compiledRule 编译后的规则
+     */
+    private void addToBucket(MutableBucket<T> bucket, CompiledRule<T> compiledRule) {
+        switch (compiledRule.slotType()) {
+            case EXACT ->
+                bucket.exact().computeIfAbsent(compiledRule.key(), _ -> new ArrayList<>()).add(compiledRule.rule());
+            case BUCKET ->
+                bucket.buckets().computeIfAbsent(compiledRule.key(), _ -> new ArrayList<>()).add(compiledRule.rule());
+            case GLOBAL -> bucket.global().add(compiledRule.rule());
+        }
+    }
+
+    /**
+     * 对规则表执行单条 upsert
+     *
+     * @param table        现有规则表
+     * @param compiledRule 编译后的规则
+     * @return 更新后的规则表
+     */
+    private RuleTable<T> upsertCompiledRule(RuleTable<T> table, CompiledRule<T> compiledRule) {
+        if (compiledRule.isAnyMethod()) {
+            return new RuleTable<>(table.methodBuckets(), addToPathIndex(table.anyMethod(), compiledRule));
+        }
+
+        Map<Integer, RuleTable.PathIndex<T>> methodBuckets = new HashMap<>(table.methodBuckets());
+        for (int bit : compiledRule.methodBits()) {
+            RuleTable.PathIndex<T> updated = addToPathIndex(
+                methodBuckets.getOrDefault(bit, RuleTable.PathIndex.empty()),
+                compiledRule
+            );
+            methodBuckets.put(bit, updated);
+        }
+
+        return new RuleTable<>(Map.copyOf(methodBuckets), table.anyMethod());
+    }
+
+    /**
+     * 对规则表执行单条 remove
+     *
+     * @param table        现有规则表
+     * @param compiledRule 编译后的规则
+     * @return 更新后的规则表
+     */
+    private RuleTable<T> removeCompiledRule(RuleTable<T> table, CompiledRule<T> compiledRule) {
+        if (compiledRule.isAnyMethod()) {
+            return new RuleTable<>(table.methodBuckets(), removeFromPathIndex(table.anyMethod(), compiledRule));
+        }
+
+        Map<Integer, RuleTable.PathIndex<T>> methodBuckets = new HashMap<>(table.methodBuckets());
+        for (int bit : compiledRule.methodBits()) {
+            RuleTable.PathIndex<T> current = methodBuckets.get(bit);
+            if (Objects.isNull(current)) {
+                continue;
+            }
+
+            RuleTable.PathIndex<T> updated = removeFromPathIndex(current, compiledRule);
+            if (isEmpty(updated)) {
+                methodBuckets.remove(bit);
+            } else {
+                methodBuckets.put(bit, updated);
+            }
+        }
+
+        return new RuleTable<>(Map.copyOf(methodBuckets), table.anyMethod());
+    }
+
+    /**
+     * 向路径索引插入单条规则
+     *
+     * @param index        原路径索引
+     * @param compiledRule 编译后的规则
+     * @return 更新后的路径索引
+     */
+    private RuleTable.PathIndex<T> addToPathIndex(RuleTable.PathIndex<T> index, CompiledRule<T> compiledRule) {
+        return switch (compiledRule.slotType()) {
+            case EXACT -> new RuleTable.PathIndex<>(
+                updatePathMap(index.exact(), compiledRule.key(), compiledRule.rule(), true),
+                index.buckets(),
+                index.global()
+            );
+            case BUCKET -> new RuleTable.PathIndex<>(
+                index.exact(),
+                updatePathMap(index.buckets(), compiledRule.key(), compiledRule.rule(), true),
+                index.global()
+            );
+            case GLOBAL -> new RuleTable.PathIndex<>(
+                index.exact(),
+                index.buckets(),
+                updateRuleArray(index.global(), compiledRule.rule(), true)
+            );
+        };
+    }
+
+    /**
+     * 从路径索引删除单条规则
+     *
+     * @param index        原路径索引
+     * @param compiledRule 编译后的规则
+     * @return 更新后的路径索引
+     */
+    private RuleTable.PathIndex<T> removeFromPathIndex(RuleTable.PathIndex<T> index, CompiledRule<T> compiledRule) {
+        return switch (compiledRule.slotType()) {
+            case EXACT -> new RuleTable.PathIndex<>(
+                updatePathMap(index.exact(), compiledRule.key(), compiledRule.rule(), false),
+                index.buckets(),
+                index.global()
+            );
+            case BUCKET -> new RuleTable.PathIndex<>(
+                index.exact(),
+                updatePathMap(index.buckets(), compiledRule.key(), compiledRule.rule(), false),
+                index.global()
+            );
+            case GLOBAL -> new RuleTable.PathIndex<>(
+                index.exact(),
+                index.buckets(),
+                updateRuleArray(index.global(), compiledRule.rule(), false)
+            );
+        };
+    }
+
+    /**
+     * 更新 exact 或 bucket 结构中的单个数组槽位
+     *
+     * @param raw  原始 map
+     * @param key  路径 key
+     * @param rule 目标规则
+     * @param add  是否为新增操作
+     * @return 更新后的 map
+     */
+    private Map<String, MatchRule<T>[]> updatePathMap(Map<String, MatchRule<T>[]> raw, String key, MatchRule<T> rule, boolean add) {
+        MatchRule<T>[] current = raw.get(key);
+        MatchRule<T>[] updated = updateRuleArray(current, rule, add);
+
+        Map<String, MatchRule<T>[]> result = new HashMap<>(raw);
+        if (updated.length == 0) {
+            result.remove(key);
+        } else {
+            result.put(key, updated);
+        }
+
+        return result.isEmpty() ? Map.of() : Map.copyOf(result);
+    }
+
+    /**
+     * 更新规则数组
+     *
+     * <p>该方法会先按规则 ID 去重，再在新增场景中重新排序</p>
+     *
+     * @param current 当前规则数组
+     * @param rule    目标规则
+     * @param add     是否为新增操作
+     * @return 更新后的规则数组
+     */
+    @SuppressWarnings("unchecked")
+    private MatchRule<T>[] updateRuleArray(MatchRule<T>[] current, MatchRule<T> rule, boolean add) {
+        List<MatchRule<T>> rules = new ArrayList<>();
+        if (Objects.nonNull(current)) {
+            for (MatchRule<T> item : current) {
+                if (!Objects.equals(item.id(), rule.id())) {
+                    rules.add(item);
+                }
+            }
+        }
+
+        if (add) {
+            rules.add(rule);
+            rules.sort(RULE_COMPARATOR);
+        }
+
+        return rules.toArray(MatchRule[]::new);
+    }
+
+    /**
+     * 判断路径索引是否为空
+     *
+     * @param index 路径索引
+     * @return {@code true} 表示索引中没有任何规则
+     */
+    private boolean isEmpty(RuleTable.PathIndex<T> index) {
+        return index.exact().isEmpty() && index.buckets().isEmpty() && index.global().length == 0;
+    }
+
+    /**
+     * 将中间桶结构转为运行期路径索引
+     *
+     * @param bucket 中间桶结构
+     * @return 运行期路径索引
+     */
+    @SuppressWarnings("unchecked")
+    private RuleTable.PathIndex<T> toPathIndex(MutableBucket<T> bucket) {
+        return new RuleTable.PathIndex<>(
+            convertMap(bucket.exact()),
+            convertMap(bucket.buckets()),
+            bucket.global().toArray(MatchRule[]::new)
         );
     }
 
     /**
-     * 将中间态 List 索引转换为数组索引
+     * 将中间 map 转为不可变数组 map
      *
-     * @param raw 中间态索引
-     * @return value 为数组的最终索引
+     * @param raw 中间 map
+     * @return 不可变数组 map
      */
-    private Map<String, MethodRule<T>[]> toArray(Map<String, List<MethodRule<T>>> raw) {
-        Map<String, MethodRule<T>[]> map = new HashMap<>();
-        raw.forEach((k, v) -> map.put(k, toRuleArray(v)));
-        return map;
+    @SuppressWarnings("unchecked")
+    private Map<String, MatchRule<T>[]> convertMap(Map<String, List<MatchRule<T>>> raw) {
+        if (raw.isEmpty()) {
+            return Map.of();
+        }
+
+        var result = new HashMap<String, MatchRule<T>[]>(raw.size());
+        raw.forEach((k, v) -> result.put(k, v.toArray(MatchRule[]::new)));
+        return Map.copyOf(result);
     }
 
     /**
-     * 解析 methods 字符串为方法位掩码
-     * <p>
-     * 解析失败 token 会被忽略；若全部 token 非法，则回退为 ALL。
-     * </p>
+     * 对桶内规则执行排序
      *
-     * @param methods 规则中的方法配置（如 GET,POST / ALL / *）
+     * @param bucket 中间桶结构
+     * @return 排序后的桶
+     */
+    private MutableBucket<T> sortBucket(MutableBucket<T> bucket) {
+        bucket.exact().values().forEach(l -> l.sort(RULE_COMPARATOR));
+        bucket.buckets().values().forEach(l -> l.sort(RULE_COMPARATOR));
+        bucket.global().sort(RULE_COMPARATOR);
+        return bucket;
+    }
+
+    /**
+     * 解析 HTTP 方法字符串为位掩码
+     *
+     * @param methods 方法字符串
      * @return 方法位掩码
      */
     private int parseMethodMask(String methods) {
-        // 空值/ALL/* 统一视为“匹配所有方法”
-        if (Strings.isBlank(methods) || "ALL".equalsIgnoreCase(methods) || "*".equals(methods)) {
+        if (Strings.isBlank(methods) || "*".equals(methods) || "ALL".equalsIgnoreCase(methods)) {
             return RuleTable.ALL_METHOD_MASK;
         }
 
         int mask = 0;
-        boolean hasValidMethod = false;
-        for (String token : methods.split(",")) {
-            // 支持 "GET, POST" 这类带空格配置，逐项 trim
-            String method = token.trim();
-            // 容忍连续逗号或空 token
-            if (method.isEmpty()) {
-                continue;
-            }
-
-            try {
-                // 统一大写后走 HttpMethod 枚举，避免大小写差异导致失配
-                method = method.toUpperCase(Locale.ROOT);
-                // 逐个方法累加到位掩码，例如 GET|POST
-                mask |= RuleTable.getMask(HttpMethod.valueOf(method));
-                hasValidMethod = true;
-            } catch (IllegalArgumentException ignored) {
-                // 忽略非法方法名，避免配置脏数据中断全量编译
-            }
+        for (String part : methods.split(",")) {
+            HttpMethod httpMethod = HttpMethod.valueOf(part.trim().toUpperCase());
+            mask |= RuleTable.getMask(httpMethod);
         }
 
-        // 全部 token 都非法时回退为 ALL，避免产出“永不命中”的死规则
-        return hasValidMethod ? mask : RuleTable.ALL_METHOD_MASK;
+        return mask == 0 ? RuleTable.ALL_METHOD_MASK : mask;
     }
 
     /**
-     * 对同一桶内规则做稳定排序
-     * <p>
-     * 先按 priority 降序，再按路径特异性排序，确保命中行为可预期
-     * </p>
+     * 将方法掩码拆分为单个 bit 数组
+     * tempMask & -tempMask 利用了“取反加一”会使原数最低位的 1 保持不变, 而该位左侧所有位取反、右侧所有位为 0 的特性, 从而通过按位与运算，仅保留最低位的 1
+     * tempMask ^= bit: 去掉该最低位 1 (等价于 tempMask -= bit, 但异或仅在低位唯一时等价)
      *
-     * @param list 桶内规则列表
-     * @return 排序后的原列表
+     * @param methodMask 方法掩码
+     * @return 单 bit 数组；ALL 方法返回空数组
      */
-    private List<MethodRule<T>> sortRules(List<MethodRule<T>> list) {
-        // 0/1 条无需排序，直接返回
-        if (list.size() <= 1) {
-            return list;
+    private int[] methodBits(int methodMask) {
+        if (methodMask == RuleTable.ALL_METHOD_MASK) {
+            return new int[0];
         }
 
-        // 先比业务优先级（高优先级在前），再比路径特异性（更具体在前）
-        list.sort(Comparator.<MethodRule<T>, Integer>comparing(MethodRule::priority).reversed()
-            .thenComparing(MethodRule::pattern, PathPattern.SPECIFICITY_COMPARATOR));
-        return list;
+        List<Integer> bits = new ArrayList<>(4);
+        int tempMask = methodMask;
+        while (tempMask != 0) {
+            int bit = tempMask & -tempMask;
+            bits.add(bit);
+            tempMask ^= bit;
+        }
+
+        return bits.stream().mapToInt(Integer::intValue).toArray();
     }
 
     /**
-     * 将规则列表转换为数组
+     * 编译阶段使用的可变桶结构
      *
-     * @param rules 规则列表
-     * @return 规则数组
+     * @param exact   精确路径中间桶
+     * @param buckets 动态路径中间桶
+     * @param global  全局兜底规则列表
+     * @param <T>     业务目标类型
      */
-    @SuppressWarnings("unchecked")
-    private MethodRule<T>[] toRuleArray(List<MethodRule<T>> rules) {
-        return rules.toArray(MethodRule[]::new);
+    private record MutableBucket<T>(Map<String, List<MatchRule<T>>> exact,
+                                    Map<String, List<MatchRule<T>>> buckets,
+                                    List<MatchRule<T>> global) {
+        /**
+         * 创建空中间桶
+         */
+        MutableBucket() {
+            this(new HashMap<>(), new HashMap<>(), new ArrayList<>());
+        }
+    }
+
+    /**
+     * 规则所属的索引槽位类型
+     */
+    public enum SlotType {
+        /**
+         * 精确路径槽位
+         */
+        EXACT,
+        /**
+         * 动态路径桶槽位
+         */
+        BUCKET,
+        /**
+         * 全局兜底槽位
+         */
+        GLOBAL
+    }
+
+    /**
+     * 规则影响范围描述
+     *
+     * @param slotType   规则所属槽位类型
+     * @param key        对应的 exact path 或 bucket key
+     * @param methodMask 规则方法掩码
+     * @param methodBits 单 bit 方法数组
+     */
+    public record RuleScope(SlotType slotType, String key, int methodMask, int[] methodBits) {
+        /**
+         * 判断规则是否适用于所有 HTTP 方法
+         *
+         * @return {@code true} 表示该规则为全方法规则
+         */
+        public boolean isAnyMethod() {
+            return methodMask == RuleTable.ALL_METHOD_MASK;
+        }
+    }
+
+    /**
+     * 编译后的内部规则对象
+     *
+     * @param rule       运行期规则
+     * @param slotType   所属槽位类型
+     * @param key        路径 key
+     * @param methodBits 单 bit 方法数组
+     * @param <T>        业务目标类型
+     */
+    private record CompiledRule<T>(MatchRule<T> rule, SlotType slotType, String key, int[] methodBits) {
+        /**
+         * 判断规则是否适用于所有 HTTP 方法
+         *
+         * @return {@code true} 表示该规则为全方法规则
+         */
+        private boolean isAnyMethod() {
+            return rule.methodMask() == RuleTable.ALL_METHOD_MASK;
+        }
     }
 }

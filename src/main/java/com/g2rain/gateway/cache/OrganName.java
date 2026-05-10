@@ -22,7 +22,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * @author alpha
@@ -34,9 +39,19 @@ import java.util.concurrent.TimeUnit;
 public class OrganName extends AbstractMessageStorage<Long, OrganIdName, String> {
 
     /**
+     * 批量回源合并任务在虚拟线程上执行，避免占用 {@link java.util.concurrent.ForkJoinPool#commonPool()}。
+     */
+    private static final Executor VIRTUAL_THREAD_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
+
+    /**
      * 机构客户端
      */
     private final OrganClient organClient;
+
+    /**
+     * 相同「未命中 id 集合」并发回源时合并为单次 Basis 批量查询（键为排序后的 id 列表字符串）。
+     */
+    private final ConcurrentHashMap<String, CompletableFuture<Map<String, String>>> inFlightLoads = new ConcurrentHashMap<>();
 
     /**
      * 机构名称本地缓存（网关侧）。
@@ -133,25 +148,46 @@ public class OrganName extends AbstractMessageStorage<Long, OrganIdName, String>
             return result;
         }
 
-        // 2) 对未命中部分走批量接口
+        Set<Long> frozenMiss = Set.copyOf(missIds);
+        String batchKey = missBatchKey(frozenMiss);
+        CompletableFuture<Map<String, String>> shared = inFlightLoads.computeIfAbsent(batchKey, k -> {
+            CompletableFuture<Map<String, String>> future = CompletableFuture.supplyAsync(
+                () -> materializeMissBatch(frozenMiss), VIRTUAL_THREAD_EXECUTOR);
+            future.whenComplete((_, _) -> inFlightLoads.remove(k, future));
+            return future;
+        });
+
+        Map<String, String> namesForMiss = shared.join();
+        for (Long id : frozenMiss) {
+            String v = namesForMiss.get(String.valueOf(id));
+            if (Objects.nonNull(v)) {
+                result.put(String.valueOf(id), v);
+            }
+        }
+
+        return result;
+    }
+
+    private Map<String, String> materializeMissBatch(Set<Long> frozenMiss) {
         OrganIdNameMapSelectDto selectDto = new OrganIdNameMapSelectDto();
-        selectDto.setIds(missIds);
+        selectDto.setIds(frozenMiss);
         Result<List<OrganIdNameVo>> remoteResult;
         try {
             remoteResult = organClient.selectOrganIdNameMap(selectDto);
         } catch (Exception e) {
-            log.warn("批量查询机构名称失败，ids={}", missIds, e);
-            return result;
+            log.warn("批量查询机构名称失败，ids={}", frozenMiss, e);
+            return Map.of();
         }
 
         if (Objects.isNull(remoteResult) || !remoteResult.isSuccess()) {
-            log.warn("批量查询机构名称失败，ids={} result={}", missIds, remoteResult);
-            return result;
+            log.warn("批量查询机构名称失败，ids={} result={}", frozenMiss, remoteResult);
+            return Map.of();
         }
 
+        Set<Long> stillMissing = new HashSet<>(frozenMiss);
+        Map<String, String> out = new HashMap<>(Math.max(16, frozenMiss.size()));
         List<OrganIdNameVo> data = remoteResult.getData();
         if (!Collections.isEmpty(data)) {
-            // 先把接口返回的命中项写回缓存，并从 missIds 移除
             for (OrganIdNameVo vo : data) {
                 if (Objects.isNull(vo) || Objects.isNull(vo.getOrganId())) {
                     continue;
@@ -160,17 +196,20 @@ public class OrganName extends AbstractMessageStorage<Long, OrganIdName, String>
                 Long id = vo.getOrganId();
                 String name = Objects.toString(vo.getOrganName(), "");
                 organCache.put(id, name);
-                result.put(String.valueOf(id), name);
-                missIds.remove(id);
+                out.put(String.valueOf(id), name);
+                stillMissing.remove(id);
             }
         }
 
-        // 3) 回填缓存：接口没查到的也写入空串（负缓存），防止缓存穿透
-        for (Long id : missIds) {
+        for (Long id : stillMissing) {
             organCache.put(id, "");
-            result.put(String.valueOf(id), "");
+            out.put(String.valueOf(id), "");
         }
 
-        return result;
+        return out;
+    }
+
+    private static String missBatchKey(Set<Long> missIds) {
+        return missIds.stream().sorted().map(String::valueOf).collect(Collectors.joining(","));
     }
 }
