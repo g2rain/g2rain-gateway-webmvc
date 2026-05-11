@@ -68,6 +68,8 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        max.request.size: 10485760
 
 springdoc:
   swagger-ui:
