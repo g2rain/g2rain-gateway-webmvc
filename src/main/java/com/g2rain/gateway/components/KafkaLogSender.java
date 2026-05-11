@@ -51,18 +51,17 @@ public class KafkaLogSender {
      * @param gatewayEvent 载荷
      */
     public void send(String topic, GatewayEvent gatewayEvent) {
-//        if (!kafkaEnabled) {
-//            return;
-//        }
+        if (!kafkaEnabled) {
+            return;
+        }
 
-//        KafkaTemplate<String, String> template = kafkaTemplateProvider.getIfAvailable();
-//        if (Objects.isNull(template)) {
-//            return;
-//        }
+        KafkaTemplate<String, String> template = kafkaTemplateProvider.getIfAvailable();
+        if (Objects.isNull(template)) {
+            return;
+        }
 
         try {
-            log.info(JSON.obj2str(gatewayEvent));
-           // template.send(topic, JSON.obj2str(gatewayEvent));
+            template.send(topic, JSON.obj2str(gatewayEvent));
         } catch (Exception e) {
             log.error(e.getMessage(), e);
         }
