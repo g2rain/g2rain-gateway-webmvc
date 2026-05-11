@@ -15,6 +15,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Locale;
 
 /**
  * <p>{@code EdgePrincipalContextScopeFilter} 是一个 Spring {@link OncePerRequestFilter} 实现类，
@@ -30,7 +32,7 @@ import java.io.IOException;
  *
  * <p><b>设计说明：</b></p>
  * <ul>
- *     <li>该 Filter 仅负责作用域生命周期管理，不负责填充具体身份信息。</li>
+ *     <li>该 Filter 负责作用域生命周期管理，并预填充可从原始请求直接解析的上下文信息。</li>
  *     <li>通过 {@code callWith} 统一处理绑定与释放逻辑，避免手动清理遗漏。</li>
  * </ul>
  *
@@ -71,7 +73,9 @@ public class EdgePrincipalContextScopeFilter extends OncePerRequestFilter implem
     @Override
     public void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain) throws ServletException, IOException {
         try {
-            EdgePrincipalContextHolder.callWith(EdgePrincipalContext.of(), () -> {
+            EdgePrincipalContext context = EdgePrincipalContext.of();
+            context.setAcceptLanguage(resolveAcceptLanguage(request));
+            EdgePrincipalContextHolder.callWith(context, () -> {
                 filterChain.doFilter(request, response);
                 return null;
             });
@@ -84,6 +88,13 @@ public class EdgePrincipalContextScopeFilter extends OncePerRequestFilter implem
             }
             throw new ServletException(e);
         }
+    }
+
+    private String resolveAcceptLanguage(HttpServletRequest request) {
+        return Collections.list(request.getLocales()).stream()
+            .findFirst()
+            .map(Locale::toLanguageTag)
+            .orElse(null);
     }
 
     /**

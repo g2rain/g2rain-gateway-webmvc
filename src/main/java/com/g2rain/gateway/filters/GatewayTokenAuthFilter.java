@@ -31,7 +31,6 @@ import java.security.interfaces.ECPublicKey;
 import java.text.ParseException;
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -108,16 +107,8 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
         // 2. 验证 Token JWT
         TokenJWTPayload payload = inspectToken(authHeader);
 
-        // 获取语言偏好
-        String acceptLanguage = request.headers().acceptLanguage().stream()
-            .findFirst()
-            .map(Locale.LanguageRange::getRange)
-            .map(Locale::forLanguageTag)
-            .map(Locale::toLanguageTag)
-            .orElse(null);
-
         // 3. 构建鉴权上下文, 注入上下文
-        buildPrincipalContext(EdgePrincipalContextHolder.require(), payload, acceptLanguage);
+        buildPrincipalContext(EdgePrincipalContextHolder.require(), payload);
 
         // 4. 继续过滤链
         return next.handle(request);
@@ -166,9 +157,8 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
      * @param context      当前请求上下文中的鉴权信息容器
      * @param tokenPayload Token 解析后的载荷
      */
-    private void buildPrincipalContext(EdgePrincipalContext context, TokenJWTPayload tokenPayload, String acceptLanguage) {
+    private void buildPrincipalContext(EdgePrincipalContext context, TokenJWTPayload tokenPayload) {
         context.setClientId(tokenPayload.getClientId());
-        context.setAcceptLanguage(acceptLanguage);
         context.setSessionType(tokenPayload.getSessionType());
         context.setPassportId(tokenPayload.getPassportId());
         context.setUserId(tokenPayload.getUserId());
