@@ -32,6 +32,7 @@ import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 请求与响应日志记录过滤器。
@@ -74,6 +75,13 @@ import java.util.Objects;
 @Component
 @AllArgsConstructor
 public class TraceLoggingFilter implements HandlerFilterFunction<ServerResponse, ServerResponse>, ResponseBodyProcessor {
+
+    /**
+     * 不向 Kafka 投递网关事件的请求路径（与 {@link #collectBasicRequestInfo} 中 {@link HttpServletRequest#getRequestURI()} 一致）。
+     */
+    private static final Set<String> KAFKA_SEND_EXCLUDED_PATHS = Set.of(
+        "/basis/audit_event/list", "/basis/audit_event/page"
+    );
 
     /**
      * 网关侧 Kafka 日志发送
@@ -124,16 +132,18 @@ public class TraceLoggingFilter implements HandlerFilterFunction<ServerResponse,
 
         logResponse(body);
 
-        try {
-            GatewayEvent gatewayEvent = GatewayEvent.builder()
-                .buildHeaders(request)
-                .buildPrincipal(EdgePrincipalContextHolder.get())
-                .buildPayload(request, body)
-                .build();
+        if (!KAFKA_SEND_EXCLUDED_PATHS.contains(request.getRequestURI())) {
+            try {
+                GatewayEvent gatewayEvent = GatewayEvent.builder()
+                    .buildHeaders(request)
+                    .buildPrincipal(EdgePrincipalContextHolder.get())
+                    .buildPayload(request, body)
+                    .build();
 
-            kafkaLogSender.send("gateway.exchange.event", gatewayEvent);
-        } catch (Exception e) {
-            log.warn("构建或发送网关事件失败", e);
+                kafkaLogSender.send("gateway.exchange.event", gatewayEvent);
+            } catch (Exception e) {
+                log.warn("构建或发送网关事件失败", e);
+            }
         }
 
         return body;
