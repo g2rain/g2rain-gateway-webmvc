@@ -20,7 +20,7 @@ import java.util.Set;
 @Slf4j
 @Service
 @AllArgsConstructor
-public class PassportPerm extends AbstractMessageStorage<Long, Long, String> {
+public class DefaultPerm extends AbstractMessageStorage<Long, Long, String> {
     private final AuthorityClient authorityClient;
 
     /**
