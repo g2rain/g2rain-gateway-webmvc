@@ -93,13 +93,13 @@ public class ApiPermissionFilter implements HandlerFilterFunction<ServerResponse
             throw new GatewayException(SystemErrorCode.UNAUTHORIZED, applicationId);
         }
 
-        // 先检测全局接口权限, O(1) 所以所有接口都先执行全局校验, 不算浪费性能
-        if (defaultPerm.hasApiPermission(apiId)) {
-            return next.handle(request);
-        }
-
         // 账号类型校验, 检测不通过, 抛出异常
         if (SessionType.isPassport(context.getSessionType())) {
+            // 先检测全局接口权限, O(1) 所以所有接口都先执行全局校验, 不算浪费性能
+            if (defaultPerm.hasApiPermission(apiId)) {
+                return next.handle(request);
+            }
+
             throw new GatewayException(SystemErrorCode.UNAUTHORIZED, applicationId);
         }
 
