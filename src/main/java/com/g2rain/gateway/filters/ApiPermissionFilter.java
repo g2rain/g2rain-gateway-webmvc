@@ -5,7 +5,7 @@ import com.g2rain.basis.enums.AuthorizationStatus;
 import com.g2rain.common.enums.SessionType;
 import com.g2rain.common.exception.SystemErrorCode;
 import com.g2rain.common.utils.Strings;
-import com.g2rain.gateway.cache.PassportPerm;
+import com.g2rain.gateway.cache.DefaultPerm;
 import com.g2rain.gateway.cache.UserPerm;
 import com.g2rain.gateway.enums.GatewayErrorCode;
 import com.g2rain.gateway.exception.GatewayException;
@@ -42,7 +42,7 @@ public class ApiPermissionFilter implements HandlerFilterFunction<ServerResponse
     /**
      * 账号权限缓存
      */
-    private final PassportPerm passportPerm;
+    private final DefaultPerm defaultPerm;
 
     /**
      * 用户权限缓存
@@ -93,12 +93,14 @@ public class ApiPermissionFilter implements HandlerFilterFunction<ServerResponse
             throw new GatewayException(SystemErrorCode.UNAUTHORIZED, applicationId);
         }
 
-        if (SessionType.isPassport(context.getSessionType())) {
-            if (!passportPerm.hasApiPermission(apiId)) {
-                throw new GatewayException(SystemErrorCode.UNAUTHORIZED, applicationId);
-            }
-
+        // 先检测全局接口权限, O(1) 所以所有接口都先执行全局校验, 不算浪费性能
+        if (defaultPerm.hasApiPermission(apiId)) {
             return next.handle(request);
+        }
+
+        // 账号类型校验, 检测不通过, 抛出异常
+        if (SessionType.isPassport(context.getSessionType())) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, applicationId);
         }
 
         BaseAuthority userApiPermission = userPerm.getApiPermission(
