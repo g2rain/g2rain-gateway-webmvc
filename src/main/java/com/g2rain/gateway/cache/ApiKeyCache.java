@@ -3,6 +3,7 @@ package com.g2rain.gateway.cache;
 
 import com.g2rain.basis.enums.StaticTokenStatus;
 import com.g2rain.basis.vo.StaticAccessTokenContextVo;
+import com.g2rain.basis.vo.StaticAccessTokenHashVo;
 import com.g2rain.basis.vo.StaticAccessTokenResolveVo;
 import com.g2rain.common.model.Result;
 import com.g2rain.common.syncer.AbstractMessageStorage;
@@ -29,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>
  * 通过 {@link LoginTokenClient}（Feign）调用 basis 解析令牌：SHA-256 作键、激活态缓存完整上下文、
- * 吊销态缓存轻量标记、不存在不缓存；{@link BasisSyncerEnum#STATIC_ACCESS_TOKEN} 推送 tokenHash 时失效。
+ * 吊销态缓存轻量标记、不存在不缓存；{@link BasisSyncerEnum#STATIC_ACCESS_TOKEN} 推送 {@link StaticAccessTokenHashVo} 时失效。
  * </p>
  *
  * @author alpha
@@ -37,7 +38,7 @@ import java.util.concurrent.TimeUnit;
  */
 @Service
 @AllArgsConstructor
-public class ApiKeyCache extends AbstractMessageStorage<String, String, String> {
+public class ApiKeyCache extends AbstractMessageStorage<String, StaticAccessTokenHashVo, String> {
 
     private static final Executor VIRTUAL_THREAD_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
@@ -54,27 +55,31 @@ public class ApiKeyCache extends AbstractMessageStorage<String, String, String> 
     }
 
     @Override
-    protected @NonNull Class<String> getValueType() {
-        return String.class;
+    protected @NonNull Class<StaticAccessTokenHashVo> getValueType() {
+        return StaticAccessTokenHashVo.class;
     }
 
     @Override
-    protected @NonNull String getKey(@NonNull String value) {
-        return value;
+    protected @NonNull String getKey(@NonNull StaticAccessTokenHashVo value) {
+        return value.getTokenHash();
     }
 
     @Override
-    protected void create(@NonNull String key, String value) {
+    protected void create(@NonNull String key, StaticAccessTokenHashVo value) {
         delete(key);
     }
 
     @Override
     protected void delete(@NonNull String key) {
+        if (Strings.isBlank(key)) {
+            return;
+        }
+
         CACHE.invalidate(key);
     }
 
     @Override
-    protected void update(@NonNull String key, String value) {
+    protected void update(@NonNull String key, StaticAccessTokenHashVo value) {
         delete(key);
     }
 
