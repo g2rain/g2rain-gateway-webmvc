@@ -27,12 +27,7 @@ import org.springframework.web.servlet.function.ServerResponse;
 import java.util.Objects;
 
 /**
- * 接口权限校验过滤器（骨架）。
- *
- * <p>
- * 用于在网关侧根据请求 {@code URI + Method} 判断当前登录用户/客户端是否有权限访问该接口。
- * 具体的权限数据来源与匹配规则由你自行实现（例如查缓存/远端校验/本地规则表等）。
- * </p>
+ * 按路由 ID 校验 Passport/User 对接口的访问权限。
  */
 @Slf4j
 @Component

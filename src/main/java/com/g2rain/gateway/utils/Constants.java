@@ -36,6 +36,16 @@ public final class Constants {
     public static final String AUTHORIZATION_HEADER = "Authorization";
 
     /**
+     * Authorization 中 Bearer 方案前缀（与 OpenAI 一致：{@code Bearer sk-...}）。
+     */
+    public static final String BEARER_PREFIX = "Bearer ";
+
+    /**
+     * 静态 API Key 固定总长度。
+     */
+    public static final int API_KEY_LENGTH = 64;
+
+    /**
      * {@code CLIENT_PROOF_HEADER} HTTP 请求头：DPoP
      */
     public static final String CLIENT_PROOF_HEADER = "DPoP";
@@ -78,6 +88,11 @@ public final class Constants {
      * 请求参数缓存键
      */
     public static final String REQ_BODY_ATTRIBUTE = "g2rain.gateway.request.body";
+
+    /**
+     * 标记当前请求已执行 TraceLogging 请求侧日志，响应侧仅在此标记存在时记录（与 WebFlux 成对语义对齐）。
+     */
+    public static final String TRACE_LOGGING_ACTIVE = "g2rain.gateway.trace.logging.active";
 
     /**
      * 空响应结果
