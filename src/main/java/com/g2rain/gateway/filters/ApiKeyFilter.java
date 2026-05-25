@@ -81,11 +81,11 @@ public class ApiKeyFilter implements HandlerFilterFunction<ServerResponse, Serve
             throw new GatewayException(GatewayErrorCode.API_KEY_REVOKED, "apiKey");
         }
 
-        applyContext(EdgePrincipalContextHolder.require(), result.context());
+        applyContext(EdgePrincipalContextHolder.require(), result.context(), credential);
         return next.handle(request);
     }
 
-    private void applyContext(EdgePrincipalContext principal, StaticAccessTokenContextVo ctx) {
+    private void applyContext(EdgePrincipalContext principal, StaticAccessTokenContextVo ctx, String apiKey) {
         // 通过 micrometer 获取 traceId
         String traceId = Optional.ofNullable(tracer.currentSpan())
             .map(Span::context).map(TraceContext::traceId)
@@ -93,6 +93,7 @@ public class ApiKeyFilter implements HandlerFilterFunction<ServerResponse, Serve
                 UUID.randomUUID().toString().replace("-", "")
             );
 
+        principal.setApiKey(apiKey);
         principal.setStaticTokenAuthenticated(true);
         principal.setTraceId(traceId);
         principal.setRequestId(UUID.randomUUID().toString());
