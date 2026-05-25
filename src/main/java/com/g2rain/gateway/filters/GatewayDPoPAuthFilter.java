@@ -47,15 +47,10 @@ import java.util.stream.Stream;
 
 /**
  * 网关层 DPoP 鉴权过滤器。
+ *
  * <p>
- * 负责验证客户端请求中携带的 DPoP Proof（JWT 形式），包括：
- * <ul>
- *     <li>白名单跳过校验</li>
- *     <li>解析并验证 DPoP Proof JWT（头部 typ、JWK、签名）</li>
- *     <li>验证 payload 字段（iat、jti、htm、htu 等）</li>
- *     <li>构建鉴权上下文并写入 {@link EdgePrincipalContext}</li>
- * </ul>
- * 验证失败时抛出 {@link GatewayException}。
+ * 校验 {@code DPoP} 头中的 Proof JWT，并写入摘要上下文供 {@link SignVerificationFilter} 使用。
+ * {@link EdgePrincipalContext#isStaticTokenAuthenticated()} 为真时跳过。
  * </p>
  *
  * @author alpha
@@ -94,6 +89,10 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
         // 如果命中白名单，则跳过当前 Filter 的处理，直接进入下一个 Filter
         String filterName = this.getClass().getSimpleName();
         if (whiteListResolver.shouldExclude(filterName, request)) {
+            return next.handle(request);
+        }
+
+        if (EdgePrincipalContextHolder.require().isStaticTokenAuthenticated()) {
             return next.handle(request);
         }
 

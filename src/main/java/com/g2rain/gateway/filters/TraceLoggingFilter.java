@@ -112,13 +112,19 @@ public class TraceLoggingFilter implements HandlerFilterFunction<ServerResponse,
             return next.handle(req);
         }
 
-        logRequest(req.servletRequest());
+        HttpServletRequest servletRequest = req.servletRequest();
+        servletRequest.setAttribute(Constants.TRACE_LOGGING_ACTIVE, Boolean.TRUE);
+        logRequest(servletRequest);
         return next.handle(req);
     }
 
     @Override
     public byte[] process(HttpServletRequest request, CachedBodyResponse response, byte[] body) {
         if (whiteListResolver.shouldExclude(processorName(), request)) {
+            return body;
+        }
+
+        if (!Boolean.TRUE.equals(request.getAttribute(Constants.TRACE_LOGGING_ACTIVE))) {
             return body;
         }
 

@@ -93,8 +93,8 @@ public class EdgePrincipalContextScopeFilter extends OncePerRequestFilter implem
     private String resolveAcceptLanguage(HttpServletRequest request) {
         return Collections.list(request.getLocales()).stream()
             .findFirst()
-            .map(Locale::toLanguageTag)
-            .orElse(null);
+            .orElse(Locale.getDefault())
+            .toLanguageTag();
     }
 
     /**

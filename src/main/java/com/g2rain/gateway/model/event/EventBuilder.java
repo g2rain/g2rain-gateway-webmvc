@@ -61,7 +61,6 @@ public final class EventBuilder {
         event.setOrganName(ctx.getOrganName());
         event.setOrganType(ctx.getOrganType());
         event.setAdminCompany(ctx.isAdminCompany());
-        event.setTargetOrganId(ctx.getTargetOrganId());
         event.setApplicationId(ctx.getApplicationId());
         event.setApplicationOrganId(ctx.getApplicationOrganId());
         event.setApplicationCode(ctx.getApplicationCode());

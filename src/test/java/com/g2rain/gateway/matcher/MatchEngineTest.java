@@ -87,9 +87,9 @@ class MatchEngineTest {
         RuleCompiler<String> compiler = new RuleCompiler<>();
 
         engine.replace(compiler.compile(List.of(
-            new RuleDefinition<>(1L, "GET", "/basis/{id}/user", "mid-user")
+            new RuleDefinition<>(1L, "GET", "/basis/save/{id}/user", "mid-user")
         )));
 
-        assertEquals("mid-user", engine.matchRule(HttpMethod.GET, "/basis/1/user").orElseThrow().target());
+        assertEquals("mid-user", engine.matchRule(HttpMethod.GET, "/basis/save/1/user").orElseThrow().target());
     }
 }
