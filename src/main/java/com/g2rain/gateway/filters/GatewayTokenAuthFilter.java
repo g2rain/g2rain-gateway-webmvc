@@ -161,6 +161,7 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
         context.setOrganName(tokenPayload.getOrganName());
         context.setAdminCompany(tokenPayload.isAdminCompany());
         context.setApplicationScopes(tokenPayload.getApplicationScopes());
+        context.setClientPublicKey(tokenPayload.getClientPublicKey());
     }
 
     /**

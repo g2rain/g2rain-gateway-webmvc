@@ -60,6 +60,11 @@ public class EdgePrincipalContext extends PrincipalContext {
     private List<ApplicationScope> applicationScopes;
 
     /**
+     * Token 签发时绑定的客户端 DPoP 公钥（JWK JSON）。
+     */
+    private String clientPublicKey;
+
+    /**
      * 当前请求是否已通过个人静态访问令牌（API Key）完成鉴权。
      *
      * <p>

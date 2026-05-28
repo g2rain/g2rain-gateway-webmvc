@@ -2,10 +2,13 @@ package com.g2rain.gateway.model.web;
 
 
 import com.g2rain.common.utils.Constants;
+import com.g2rain.common.utils.Strings;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletResponseWrapper;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 
 import java.io.ByteArrayOutputStream;
@@ -211,7 +214,12 @@ public class CachedBodyResponse extends HttpServletResponseWrapper {
         this.skipCaching = Optional.ofNullable(getContentType())
             .map(MediaType::parseMediaType)
             .filter(MediaType.APPLICATION_JSON::isCompatibleWith)
-            .isEmpty();
+            .isEmpty()
+            || Optional.ofNullable(getHeader(HttpHeaders.CONTENT_DISPOSITION))
+            .filter(Strings::isNotBlank)
+            .map(ContentDisposition::parse)
+            .map(ContentDisposition::isAttachment)
+            .orElse(false);
 
         return this.skipCaching;
     }

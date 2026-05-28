@@ -8,9 +8,11 @@ import com.g2rain.common.utils.Moments;
 import com.g2rain.common.utils.Strings;
 import com.g2rain.common.web.ApplicationScope;
 import com.g2rain.common.web.DPoPJWTPayload;
+import com.g2rain.gateway.enums.GatewayErrorCode;
 import com.g2rain.gateway.exception.GatewayException;
 import com.g2rain.gateway.model.context.EdgePrincipalContext;
 import com.g2rain.gateway.model.context.EdgePrincipalContextHolder;
+import com.g2rain.gateway.utils.ClientPubKeyMatcher;
 import com.g2rain.gateway.utils.Constants;
 import com.g2rain.gateway.whitelist.WhiteListResolver;
 import com.nimbusds.jose.JOSEException;
@@ -35,6 +37,7 @@ import org.springframework.web.servlet.function.HandlerFunction;
 import org.springframework.web.servlet.function.ServerRequest;
 import org.springframework.web.servlet.function.ServerResponse;
 
+import java.security.interfaces.ECPublicKey;
 import java.text.ParseException;
 import java.time.Instant;
 import java.util.Collection;
@@ -110,14 +113,14 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
             throw new GatewayException(SystemErrorCode.PARAM_VAL_INVALID, "DPoP Proof");
         }
 
+        // 获取上下文
+        EdgePrincipalContext context = EdgePrincipalContextHolder.require();
+
         // 签名校验
-        String hashAlgorithm = verifyHeader(signedJWT);
+        String hashAlgorithm = verifyHeader(context, signedJWT);
 
         // 校验（typ、签名、jti、防重放、htm、htu 等）
         DPoPJWTPayload payload = verifyPayload(request.servletRequest(), signedJWT);
-
-        // 获取上下文
-        EdgePrincipalContext context = EdgePrincipalContextHolder.require();
 
         // 校验应用编码
         boolean isAcdNotAuthorized = Stream
@@ -145,10 +148,11 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
      * 包括 typ 类型、JWK 类型与签名正确性。
      * </p>
      *
+     * @param context   上下文
      * @param signedJWT 已解析的 SignedJWT
      * @return payload 使用的哈希算法（ph_alg）
      */
-    private String verifyHeader(SignedJWT signedJWT) {
+    private String verifyHeader(EdgePrincipalContext context, SignedJWT signedJWT) {
         try {
             JWSHeader header = signedJWT.getHeader();
 
@@ -163,10 +167,16 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
                 throw new GatewayException(SystemErrorCode.PARAM_VAL_INVALID, "DPoP Proof JWK");
             }
 
+            ECPublicKey ecPublicKey = ecKey.toECPublicKey();
+
             // 校验签名
-            JWSVerifier verifier = new ECDSAVerifier(ecKey.toECPublicKey());
+            JWSVerifier verifier = new ECDSAVerifier(ecPublicKey);
             if (!signedJWT.verify(verifier)) {
                 throw new GatewayException(SystemErrorCode.PARAM_VAL_INVALID, "DPoP Proof JWS");
+            }
+
+            if (!ClientPubKeyMatcher.matches(context.getClientPublicKey(), jwk)) {
+                throw new GatewayException(GatewayErrorCode.TOKEN_INVALID, "token");
             }
 
             // context参数：在当前的方法体内, 只是为了设置参数hash算法名称

@@ -19,6 +19,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.core.Ordered;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.function.HandlerFilterFunction;
 import org.springframework.web.servlet.function.HandlerFunction;
@@ -127,6 +128,8 @@ public class TraceLoggingFilter implements HandlerFilterFunction<ServerResponse,
         if (!Boolean.TRUE.equals(request.getAttribute(Constants.TRACE_LOGGING_ACTIVE))) {
             return body;
         }
+
+        log.info("响应体大小:{}", Collections.isNotEmpty(body) ? body.length : response.getHeader(HttpHeaders.CONTENT_LENGTH));
 
         logResponse(body);
 
