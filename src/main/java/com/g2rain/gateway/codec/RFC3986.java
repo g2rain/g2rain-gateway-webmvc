@@ -115,4 +115,10 @@ public class RFC3986 {
      * 严格模式 query 参数名
      */
     public static final PercentCodec QUERY_PARAM_NAME_STRICT = UNRESERVED;
+
+    /**
+     * query 参数 canonical 编码（与前端 rfc3986Encode 对齐）
+     * 仅保留 unreserved + ':'，其余全部百分号编码
+     */
+    public static final PercentCodec QUERY_PARAM_CANONICAL = UNRESERVED.orNew(PercentCodec.of(":"));
 }

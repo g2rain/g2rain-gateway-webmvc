@@ -48,6 +48,6 @@ public class RFC3986Encoder {
      * @return 编码后的 URL 字符串,输入为空时返回 {@code null}
      */
     public static String encode(String url, Charset charset) {
-        return RFC3986.QUERY.encode(url, charset, null);
+        return RFC3986.QUERY_PARAM_CANONICAL.encode(url, charset, null);
     }
 }
