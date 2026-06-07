@@ -7,9 +7,11 @@ import com.g2rain.common.utils.MediaTypes;
 import com.g2rain.common.utils.Strings;
 import com.g2rain.common.web.PrincipalHeaders;
 import com.g2rain.gateway.components.KafkaLogSender;
-import com.g2rain.gateway.model.logger.JsonLog;
+import com.g2rain.gateway.model.context.EdgePrincipalContextHolder;
+import com.g2rain.gateway.model.event.GatewayEvent;
 import com.g2rain.gateway.model.web.CachedBodyRequest;
 import com.g2rain.gateway.model.web.CachedBodyResponse;
+import com.g2rain.gateway.utils.Constants;
 import com.g2rain.gateway.utils.ReqParamCodec;
 import com.g2rain.gateway.whitelist.WhiteListResolver;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,6 +19,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.core.Ordered;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.function.HandlerFilterFunction;
 import org.springframework.web.servlet.function.HandlerFunction;
@@ -110,7 +113,9 @@ public class TraceLoggingFilter implements HandlerFilterFunction<ServerResponse,
             return next.handle(req);
         }
 
-        logRequest(req.servletRequest());
+        HttpServletRequest servletRequest = req.servletRequest();
+        servletRequest.setAttribute(Constants.TRACE_LOGGING_ACTIVE, Boolean.TRUE);
+        logRequest(servletRequest);
         return next.handle(req);
     }
 
@@ -120,7 +125,26 @@ public class TraceLoggingFilter implements HandlerFilterFunction<ServerResponse,
             return body;
         }
 
+        if (!Boolean.TRUE.equals(request.getAttribute(Constants.TRACE_LOGGING_ACTIVE))) {
+            return body;
+        }
+
+        log.info("响应体大小:{}", Collections.isNotEmpty(body) ? body.length : response.getHeader(HttpHeaders.CONTENT_LENGTH));
+
         logResponse(body);
+
+        try {
+            GatewayEvent gatewayEvent = GatewayEvent.builder()
+                .buildHeaders(request)
+                .buildPrincipal(EdgePrincipalContextHolder.get())
+                .buildPayload(request, body)
+                .build();
+
+            kafkaLogSender.send("gateway.exchange.event", gatewayEvent);
+        } catch (Exception e) {
+            log.warn("构建或发送网关事件失败", e);
+        }
+
         return body;
     }
 
@@ -167,6 +191,7 @@ public class TraceLoggingFilter implements HandlerFilterFunction<ServerResponse,
             processJsonBody(cached, logMap);
             return;
         }
+
         if (MediaTypes.isMultipartFormData(contentType)) {
             processMultipartBody(cached, logMap);
             return;
@@ -217,7 +242,9 @@ public class TraceLoggingFilter implements HandlerFilterFunction<ServerResponse,
      * @param logMap        存储日志信息的 Map
      */
     private void processFormUrlEncodedBody(CachedBodyRequest cachedRequest, Map<String, Object> logMap) {
-        logMap.put("表单参数", ReqParamCodec.processFormUrlEncodedBody(cachedRequest));
+        var body = ReqParamCodec.processFormUrlEncodedBody(cachedRequest);
+        cachedRequest.setAttribute(Constants.REQ_BODY_ATTRIBUTE, body);
+        logMap.put("表单参数", body);
         printRequest(logMap);
     }
 
@@ -228,7 +255,9 @@ public class TraceLoggingFilter implements HandlerFilterFunction<ServerResponse,
      * @param logMap        存储日志信息的 Map
      */
     private void processJsonBody(CachedBodyRequest cachedRequest, Map<String, Object> logMap) {
-        logMap.put("请求主体", new String(cachedRequest.asBytes(), StandardCharsets.UTF_8));
+        var body = new String(cachedRequest.asBytes(), StandardCharsets.UTF_8);
+        cachedRequest.setAttribute(Constants.REQ_BODY_ATTRIBUTE, body);
+        logMap.put("请求主体", body);
         printRequest(logMap);
     }
 
@@ -239,7 +268,9 @@ public class TraceLoggingFilter implements HandlerFilterFunction<ServerResponse,
      * @param logMap        存储日志信息的 Map
      */
     private void processMultipartBody(CachedBodyRequest cachedRequest, Map<String, Object> logMap) {
-        logMap.put("表单参数", ReqParamCodec.processMultipartBody(cachedRequest));
+        var body = ReqParamCodec.processMultipartBody(cachedRequest);
+        cachedRequest.setAttribute(Constants.REQ_BODY_ATTRIBUTE, body);
+        logMap.put("表单参数", body);
         printRequest(logMap);
     }
 
@@ -250,7 +281,6 @@ public class TraceLoggingFilter implements HandlerFilterFunction<ServerResponse,
      */
     private void printRequest(Map<String, Object> logMap) {
         log.info("请求信息 - {}", JsonCodecFactory.instance().obj2str(logMap));
-        kafkaLogSender.send("logs", new JsonLog());
     }
 
     /**

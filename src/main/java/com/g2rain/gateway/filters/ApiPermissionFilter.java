@@ -1,16 +1,24 @@
 package com.g2rain.gateway.filters;
 
 
+import com.g2rain.basis.enums.AuthorizationStatus;
+import com.g2rain.common.enums.SessionType;
 import com.g2rain.common.exception.SystemErrorCode;
+import com.g2rain.common.utils.Strings;
+import com.g2rain.gateway.cache.DefaultPerm;
+import com.g2rain.gateway.cache.UserPerm;
+import com.g2rain.gateway.enums.GatewayErrorCode;
 import com.g2rain.gateway.exception.GatewayException;
+import com.g2rain.gateway.model.cache.BaseAuthority;
 import com.g2rain.gateway.model.context.EdgePrincipalContext;
 import com.g2rain.gateway.model.context.EdgePrincipalContextHolder;
-import com.g2rain.gateway.permission.ApiPermissionDecision;
-import com.g2rain.gateway.permission.ApiPermissionService;
+import com.g2rain.gateway.utils.Constants;
+import com.g2rain.gateway.whitelist.WhiteListResolver;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.core.Ordered;
+import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.function.HandlerFilterFunction;
 import org.springframework.web.servlet.function.HandlerFunction;
 import org.springframework.web.servlet.function.ServerRequest;
@@ -19,19 +27,33 @@ import org.springframework.web.servlet.function.ServerResponse;
 import java.util.Objects;
 
 /**
- * 接口权限校验过滤器（骨架）。
- *
- * <p>
- * 用于在网关侧根据请求 {@code URI + Method} 判断当前登录用户/客户端是否有权限访问该接口。
- * 具体的权限数据来源与匹配规则由你自行实现（例如查缓存/远端校验/本地规则表等）。
- * </p>
+ * 按路由 ID 校验 Passport/User 对接口的访问权限。
  */
 @Slf4j
-// @Component
+@Component
 @AllArgsConstructor
 public class ApiPermissionFilter implements HandlerFilterFunction<ServerResponse, ServerResponse>, Ordered {
 
-    private final ApiPermissionService apiPermissionService;
+    /**
+     * 账号权限缓存
+     */
+    private final DefaultPerm defaultPerm;
+
+    /**
+     * 用户权限缓存
+     */
+    private final UserPerm userPerm;
+
+    /**
+     * {@code whiteListResolver} 用于判断当前请求是否命中白名单规则，
+     * 如果命中则可以跳过当前 Filter 的执行。
+     * <p>
+     * 白名单规则包括全局规则和针对特定 Filter 的规则，匹配顺序为：
+     * Filter 白名单 → 全局白名单，
+     * 匹配方式包括 contextPath、exactPath、patternPath。
+     * </p>
+     */
+    private final WhiteListResolver whiteListResolver;
 
     /**
      * 接口权限校验入口。
@@ -48,23 +70,48 @@ public class ApiPermissionFilter implements HandlerFilterFunction<ServerResponse
      */
     @Override
     public ServerResponse filter(@NonNull ServerRequest request, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
-        EdgePrincipalContext context = EdgePrincipalContextHolder.get();
-        String applicationCode = Objects.nonNull(context) ? context.getApplicationCode() : null;
-        boolean backEndRequest = Objects.nonNull(context) && context.isBackEnd();
+        // 获取当前过滤器的类名（用于白名单判断）
+        String filterName = this.getClass().getSimpleName();
 
-        ApiPermissionDecision decision = apiPermissionService.check(
-            request.method(),
-            request.path(),
-            applicationCode,
-            backEndRequest
+        // 判断当前请求是否命中白名单规则
+        // 命中则跳过本过滤器，直接进入下一个过滤器
+        if (whiteListResolver.shouldExclude(filterName, request)) {
+            return next.handle(request);
+        }
+
+        // 如果是账号, 进行账号接口鉴权
+        EdgePrincipalContext context = EdgePrincipalContextHolder.get();
+        Long applicationId = context.getApplicationId();
+
+        Long apiId = (Long) request.attribute(Constants.ROUTE_INTERNAL_ID).orElse(null);
+        if (Objects.isNull(apiId)) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, applicationId);
+        }
+
+        // 账号类型校验, 检测不通过, 抛出异常
+        if (SessionType.isPassport(context.getSessionType())) {
+            // 先检测全局接口权限, O(1) 所以所有接口都先执行全局校验, 不算浪费性能
+            if (defaultPerm.hasApiPermission(apiId)) {
+                return next.handle(request);
+            }
+
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, applicationId);
+        }
+
+        BaseAuthority userApiPermission = userPerm.getApiPermission(
+            context.getOrganId(), context.getUserId(), applicationId, apiId
         );
 
-        if (!decision.allowed()) {
-            throw new GatewayException(
-                SystemErrorCode.UNAUTHORIZED,
-                Objects.toString(decision.interfaceCode(), request.path())
-            );
+        // 没有接口权限能力
+        if (Objects.isNull(userApiPermission)) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, applicationId);
         }
+
+        // 订阅关停
+        if (!Strings.equals(AuthorizationStatus.ACTIVATED.name(), userApiPermission.getStatus())) {
+            throw new GatewayException(GatewayErrorCode.SUBSCRIPTION_EXPIRED);
+        }
+
         return next.handle(request);
     }
 

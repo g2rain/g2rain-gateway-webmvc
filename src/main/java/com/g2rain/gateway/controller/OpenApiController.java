@@ -1,10 +1,12 @@
 package com.g2rain.gateway.controller;
 
-import com.g2rain.gateway.route.RouteCompiler;
-import com.g2rain.infra.vo.RouteDefinitionVo;
+import com.g2rain.basis.dto.ServiceRegistrySelectDto;
+import com.g2rain.basis.vo.ServiceRegistryVo;
+import com.g2rain.common.model.Result;
+import com.g2rain.gateway.client.ServiceRegistryClient;
+import com.g2rain.gateway.utils.Constants;
 import lombok.AllArgsConstructor;
 import org.springframework.http.MediaType;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -17,7 +19,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * 动态 OpenAPI 目录：数据源自 {@link RouteCompiler#getRouteDefinitions()}（与 WebFlux 侧 {@code OpenApiController} + {@code MemoryRouteRepository} 等效）。
+ * 动态 OpenAPI 目录：数据源自 {@link ServiceRegistryClient#selectList(ServiceRegistrySelectDto)}（与 WebFlux 侧 {@code OpenApiController} + {@code MemoryRouteRepository} 等效）。
  *
  * @author alpha
  * @since 2026/4/11
@@ -26,7 +28,7 @@ import java.util.Optional;
 @AllArgsConstructor
 public class OpenApiController {
 
-    private final RouteCompiler routeCompiler;
+    private final ServiceRegistryClient serviceRegistryClient;
 
     /**
      * Swagger UI {@code configUrl} 所需结构（含 {@code urls} 与默认选中的 {@code urls.primaryName}）。
@@ -56,7 +58,16 @@ public class OpenApiController {
      */
     private List<OpenApiDocItem> listDocs() {
         Map<String, OpenApiDocItem> byUrl = new LinkedHashMap<>();
-        for (RouteDefinitionVo v : routeCompiler.getRouteDefinitions()) {
+
+        Result<List<ServiceRegistryVo>> result = serviceRegistryClient.selectList(
+            new ServiceRegistrySelectDto()
+        );
+
+        if (Objects.isNull(result) || !result.isSuccess()) {
+            return List.of();
+        }
+
+        for (ServiceRegistryVo v : result.getData()) {
             OpenApiDocItem item = toItem(v);
             if (Objects.isNull(item)) {
                 continue;
@@ -70,34 +81,10 @@ public class OpenApiController {
             .toList();
     }
 
-    private OpenApiDocItem toItem(RouteDefinitionVo v) {
-        if (!StringUtils.hasText(v.getEndpointHost())) {
-            return null;
-        }
-
-        return contextOf(v)
-            .map(ctx -> new OpenApiDocItem(ctx, String.format("/%s/v3/api-docs", ctx)))
+    private OpenApiDocItem toItem(ServiceRegistryVo registry) {
+        return Optional.of(registry.getRoutePrefix())
+            .map(ctx -> new OpenApiDocItem(ctx, String.format(Constants.DOC_PATH_FORMAT, ctx)))
             .orElse(null);
-    }
-
-    private Optional<String> contextOf(RouteDefinitionVo v) {
-        String raw = v.getContext();
-        if (!StringUtils.hasText(raw)) {
-            return Optional.empty();
-        }
-
-        String trimmed = raw.trim();
-        if (trimmed.isEmpty()) {
-            return Optional.empty();
-        }
-
-        // 与 Path 谓词中 context 段一致：去掉首尾 '/'
-        String normalized = trimmed.replaceAll("^/+", "").replaceAll("/+$", "");
-        if (!StringUtils.hasText(normalized)) {
-            return Optional.empty();
-        }
-
-        return Optional.of(normalized);
     }
 
     public record OpenApiDocItem(String name, String url) {

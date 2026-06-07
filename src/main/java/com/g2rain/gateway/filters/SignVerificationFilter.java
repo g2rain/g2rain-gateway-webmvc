@@ -28,18 +28,12 @@ import java.util.HexFormat;
 import java.util.Objects;
 
 /**
- * 全局摘要校验过滤器，用于验证请求的 query 参数和 body 内容的完整性。
+ * 全局请求摘要校验过滤器。
+ *
  * <p>
- * 过滤器逻辑：
- * <ul>
- *     <li>判断请求是否命中白名单，命中则跳过摘要校验。</li>
- *     <li>获取当前请求上下文中的摘要算法和预期参数摘要。</li>
- *     <li>对 query 参数和 body 内容进行规范化和摘要计算，并与预期摘要进行比对。</li>
- *     <li>摘要验证失败则抛出 {@link BusinessException}。</li>
- * </ul>
- * 支持的摘要算法由 {@link HashAlgorithm} 管理。
- * <p>
- * 注意：此类只做数据完整性校验，并不进行签名认证，不能验证请求者身份。
+ * 比对 query 与 body 的规范化摘要与上下文中的预期值。
+ * {@link EdgePrincipalContext#isStaticTokenAuthenticated()} 为真时跳过（静态 API Key 不走 DPoP 摘要体系）。
+ * </p>
  *
  * @author alpha
  * @since 2025/10/6
@@ -85,8 +79,11 @@ public class SignVerificationFilter implements HandlerFilterFunction<ServerRespo
             return next.handle(req);
         }
 
-        // 获取上下文
         EdgePrincipalContext principalContext = EdgePrincipalContextHolder.require();
+        if (principalContext.isStaticTokenAuthenticated()) {
+            return next.handle(req);
+        }
+
         String algorithm = principalContext.getHashAlgorithm();
         // hash 算法错误
         if (HashAlgorithm.isNotExist(algorithm)) {

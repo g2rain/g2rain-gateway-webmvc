@@ -10,6 +10,7 @@ import com.g2rain.gateway.exception.GatewayException;
 import com.g2rain.gateway.model.context.EdgePrincipalContext;
 import com.g2rain.gateway.model.context.EdgePrincipalContextHolder;
 import com.g2rain.gateway.token.TokenKeyManager;
+import com.g2rain.gateway.utils.AuthScheme;
 import com.g2rain.gateway.utils.Constants;
 import com.g2rain.gateway.whitelist.WhiteListResolver;
 import com.nimbusds.jose.JOSEException;
@@ -33,19 +34,11 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * 网关层 Token 鉴权过滤器。
+ * 网关层 Token（JWT）鉴权过滤器。
+ *
  * <p>
- * 负责验证客户端请求中的 Token JWT（通常位于 {@code Authorization} Header 中），
- * 并在验证通过后构建并注入 {@link EdgePrincipalContext} 鉴权上下文。
- * </p>
- * <p>
- * 核心流程：
- * <ul>
- *     <li>检查白名单请求，若命中则跳过校验</li>
- *     <li>提取并验证 Token JWT</li>
- *     <li>调用认证服务进行 Token 验证</li>
- *     <li>构建并写入鉴权上下文</li>
- * </ul>
+ * 校验 {@code Authorization} 中的登录态 JWT。若 {@link EdgePrincipalContext#isStaticTokenAuthenticated()} 为真
+ * （已由 {@link ApiKeyFilter} 完成静态令牌鉴权），则跳过。
  * </p>
  *
  * @author alpha
@@ -92,22 +85,22 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
             return next.handle(request);
         }
 
-        // 1. 提取 Token JWT
+        EdgePrincipalContext context = EdgePrincipalContextHolder.require();
+        if (context.isStaticTokenAuthenticated()) {
+            return next.handle(request);
+        }
+
         String authHeader = request.headers().firstHeader(Constants.AUTHORIZATION_HEADER);
         if (Strings.isBlank(authHeader)) {
             throw new GatewayException(GatewayErrorCode.TOKEN_INVALID, "token");
         }
 
-        // 去掉 "Bearer "
-        if (Objects.nonNull(authHeader) && Strings.startsWith(authHeader, "Bearer ")) {
-            authHeader = authHeader.substring(7);
+        String credential = AuthScheme.credential(authHeader);
+        if (Strings.isBlank(credential)) {
+            throw new GatewayException(GatewayErrorCode.TOKEN_INVALID, "token");
         }
 
-        // 2. 验证 Token JWT
-        TokenJWTPayload payload = inspectToken(authHeader);
-
-        // 3. 构建鉴权上下文, 注入上下文
-        buildPrincipalContext(EdgePrincipalContextHolder.require(), payload);
+        buildPrincipalContext(context, inspectToken(credential));
 
         // 4. 继续过滤链
         return next.handle(request);
@@ -166,8 +159,10 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
         context.setOrganType(tokenPayload.getOrganType());
         context.setOrganId(tokenPayload.getOrganId());
         context.setOrganName(tokenPayload.getOrganName());
+        context.setDeptPath(tokenPayload.getDeptPath());
         context.setAdminCompany(tokenPayload.isAdminCompany());
         context.setApplicationScopes(tokenPayload.getApplicationScopes());
+        context.setClientPublicKey(tokenPayload.getClientPublicKey());
     }
 
     /**

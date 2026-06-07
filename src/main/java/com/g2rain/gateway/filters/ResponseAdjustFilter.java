@@ -129,6 +129,11 @@ public class ResponseAdjustFilter implements ResponseBodyProcessor {
             return body;
         }
 
+        // 如果默认值, 说明不是Result包装, 直接跳过处理
+        if (result.getStatus() == 0) {
+            return body;
+        }
+
         // 2. 业务状态码非成功：保持下游已写入的响应体
         if (!result.isSuccess()) {
             return body;

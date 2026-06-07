@@ -77,7 +77,12 @@ public class CachedBodyFilter extends OncePerRequestFilter implements Ordered {
             // 执行后续过滤器和处理器
             filterChain.doFilter(requestWrapper, responseWrapper);
         } finally {
-            applyResponseProcessors(requestWrapper, responseWrapper);
+            try {
+                applyResponseProcessors(requestWrapper, responseWrapper);
+            } catch (Exception e) {
+                log.error("网关后置响应体处理器执行失败，放弃高级加工，准备原样输出原始内容", e);
+            }
+
             // 确保缓存响应体写入底层输出流
             responseWrapper.flush();
         }

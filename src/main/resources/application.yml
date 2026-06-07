@@ -18,6 +18,12 @@ spring:
       max-request-size: -1
 
   cloud:
+    gateway:
+      server:
+        webmvc:
+          function:
+            enabled: false
+
     nacos:
       server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}                  # nacos服务器地址
       # 注册中心
@@ -54,14 +60,16 @@ spring:
       - optional:nacos:${spring.application.name}.yml?group=${spring.application.name}
       - optional:nacos:g2rain-token-keypair.yml?group=g2rain
 
-  # Kafka：关闭时不要写 bootstrap-servers，避免自动配置去连集群；要开启时在 Nacos 等环境补上完整配置
+  # Kafka：与 g2rain-deploy/docker-compose.yml 中 kafka 服务对齐
+  # 本机直连 compose 映射端口默认 127.0.0.1:9092；与其它容器同网时用 kafka:9092（设 SPRING_KAFKA_BOOTSTRAP_SERVERS）
   kafka:
-    enabled: false
-    # 开启示例（放到 Nacos 的 g2rain-gateway.yml 等）:
-    # bootstrap-servers: your-kafka:9092
-    # producer:
-    #   key-serializer: org.apache.kafka.common.serialization.StringSerializer
-    #   value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    enabled: ${SPRING_KAFKA_ENABLED:false}
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:127.0.0.1:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        max.request.size: 10485760
 
 springdoc:
   swagger-ui:
