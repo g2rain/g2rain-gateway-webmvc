@@ -8,6 +8,7 @@ import com.g2rain.common.utils.Collections;
 import com.g2rain.common.utils.Strings;
 import com.g2rain.gateway.client.ErrorMessageClient;
 import com.g2rain.infra.dto.I18nMessageSelectDto;
+import com.g2rain.infra.enums.I18nMsgUsage;
 import com.g2rain.infra.enums.InfraSyncerEnum;
 import com.g2rain.infra.vo.I18nMessageVo;
 import lombok.NonNull;
@@ -54,7 +55,9 @@ public class ErrorMessageStorage extends ErrorMessageRegistry {
      */
     @Override
     public void load() {
-        Result<List<I18nMessageVo>> result = errorMessageClient.selectList(new I18nMessageSelectDto());
+        I18nMessageSelectDto selectDto = new I18nMessageSelectDto();
+        selectDto.setMessageUsageCode(I18nMsgUsage.ERROR_CODE.name());
+        Result<List<I18nMessageVo>> result = errorMessageClient.selectList(selectDto);
         if (Objects.isNull(result) || !result.isSuccess()) {
             return;
         }
