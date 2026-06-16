@@ -102,7 +102,7 @@ public class UserPerm extends AbstractMessageStorage<Long, Long, Long> {
      * </p>
      * <p>同一 {@code (organId, userId, appId)} 并发 miss 时合并为单次远端调用。</p>
      */
-    public BaseAuthority getApiPermission(Long organId, Long userId, Long appId, Long apiId) {
+    public BaseAuthority getApiPermission(Long organId, Long userId, List<Long> roleIds, Long appId, Long apiId) {
         if (Objects.isNull(organId) || Objects.isNull(userId) || Objects.isNull(appId) || Objects.isNull(apiId)) {
             return null;
         }
@@ -115,7 +115,7 @@ public class UserPerm extends AbstractMessageStorage<Long, Long, Long> {
         LoadKey loadKey = new LoadKey(organId, userId, appId);
         CompletableFuture<Map<Long, BaseAuthority>> shared = inFlightLoads.computeIfAbsent(loadKey, k -> {
             CompletableFuture<Map<Long, BaseAuthority>> future = CompletableFuture.supplyAsync(
-                () -> loadAndMerge(k), VIRTUAL_THREAD_EXECUTOR);
+                () -> loadAndMerge(organId, userId, roleIds, appId), VIRTUAL_THREAD_EXECUTOR);
             future.whenComplete((_, _) -> inFlightLoads.remove(k, future));
             return future;
         });
@@ -129,8 +129,8 @@ public class UserPerm extends AbstractMessageStorage<Long, Long, Long> {
         }
     }
 
-    private Map<Long, BaseAuthority> loadAndMerge(LoadKey key) {
-        var result = authorityClient.getApiPermissions(key.userId(), key.appId());
+    private Map<Long, BaseAuthority> loadAndMerge(Long organId, Long userId, List<Long> roleIds, Long appId) {
+        var result = authorityClient.getApiPermissions(userId, roleIds, appId);
         if (Objects.isNull(result) || !result.isSuccess()) {
             // 与原先一致：失败不写缓存，便于下次请求重试；仅合并本次 in-flight 的返回值
             return new ConcurrentHashMap<>();
@@ -148,7 +148,7 @@ public class UserPerm extends AbstractMessageStorage<Long, Long, Long> {
             }
         }
 
-        mergeAppPermissions(key.organId(), key.userId(), key.appId(), loaded);
+        mergeAppPermissions(organId, userId, appId, loaded);
         return loaded;
     }
 

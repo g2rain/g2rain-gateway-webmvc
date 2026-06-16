@@ -99,7 +99,7 @@ public class ApiPermissionFilter implements HandlerFilterFunction<ServerResponse
         }
 
         BaseAuthority userApiPermission = userPerm.getApiPermission(
-            context.getOrganId(), context.getUserId(), applicationId, apiId
+            context.getOrganId(), context.getUserId(), context.getRoleIds(), applicationId, apiId
         );
 
         // 没有接口权限能力

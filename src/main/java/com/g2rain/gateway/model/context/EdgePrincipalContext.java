@@ -65,6 +65,11 @@ public class EdgePrincipalContext extends PrincipalContext {
     private String clientPublicKey;
 
     /**
+     * 角色 ID 集合
+     */
+    private List<Long> roleIds;
+
+    /**
      * 当前请求是否已通过个人静态访问令牌（API Key）完成鉴权。
      *
      * <p>
