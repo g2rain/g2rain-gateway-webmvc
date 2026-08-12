@@ -1,6 +1,8 @@
-﻿# g2rain-gateway-webmvc
+﻿<p align="center">
+  <img src="https://github.com/g2rain.png" alt="G2Rain" width="180" />
+</p>
 
-## 1. 徽标与状态标识
+# g2rain-gateway-webmvc
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-25-437291?logo=openjdk&logoColor=white)](https://openjdk.org/)
@@ -8,241 +10,268 @@
 [![Spring Cloud](https://img.shields.io/badge/Spring%20Cloud-2025.1.1-586069?logo=spring&logoColor=white)](https://spring.io/projects/spring-cloud)
 [![Maven](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)](https://maven.apache.org/)
 
-## 2. 项目简介
+下一代AI软件开发范式，AI原生Agent平台，开源的企业级SaaS底座。
 
-`g2rain-gateway-webmvc` 是 G2rain 平台边缘入口层的 WebMVC 网关实现，负责统一接入、动态路由、边缘认证、签名校验、主体透传、响应治理与 OpenAPI 聚合。
+统一网关入口服务，在过滤器链中执行令牌、DPoP 与签名校验；向下游透传主体上下文与身份信息；通过同步消息增量刷新路由与相关缓存
 
-## 3. 平台定位
+[官网](https://www.g2rain.com) · [Issues](https://github.com/g2rain/g2rain/issues) · [Discussions](https://github.com/g2rain/g2rain/discussions)
 
-在 G2rain“企业级 AI 原生开源 SaaS 平台”体系中，`g2rain-gateway-webmvc` 位于边缘入口层，是平台 API 请求进入内部服务体系的统一入口实现之一。
+## 目录
 
-它主要服务以下场景：
-- 为主壳、子应用与外部系统提供统一入口与路由分发
-- 为平台统一身份链路提供 JWT、DPoP、API Key 与签名校验落点
-- 为下游服务提供主体透传、敏感头处理与响应补全能力
-- 为平台联调与服务发现提供 OpenAPI 聚合与动态文档目录
+- 项目简介
+- 平台定位
+- 业务域说明
+- 功能概览
+- 使用场景
+- 核心流程
+- 流程图
+- 技术栈
+- 环境要求
+- 快速开始
+- 配置说明
+- 构建与镜像
+- 代码质量与测试
+- 接口示例
+- 安全说明
+- 与关联仓库的关系
+- 模块说明
+- 职责边界
+- 常见问题
+- 关联仓库
+- 参与贡献
+- 许可证
+- 联系我们
+- 致谢
 
-它与 `g2rain-infra`、`g2rain-basis`、`g2rain-iam`、`g2rain-main-shell` 协同，共同构成平台统一接入、安全与交互链路。
+## 项目简介
 
-## 4. 核心能力
+统一网关入口服务，在过滤器链中执行令牌、DPoP 与签名校验；向下游透传主体上下文与身份信息；通过同步消息增量刷新路由与相关缓存
 
-本章回答“这个仓库在平台里提供什么能力、解决什么问题”。
+## 平台定位
 
-- 动态路由编译与快照切换能力：解决路由定义如何在运行期被加载、编译并稳定匹配的问题，通过 `GatewayRouteLoader`、`RouteCompiler`、`RouterFuncHolder` 把平台路由编译为 `RouterFunction` 内存快照。
-- 路由增量同步能力：解决路由变更如何不用重启网关即时生效的问题，通过 `RouteSync` 订阅 `g2rain-syncer` 消息并执行单条路由增删改。
-- 多层边缘安全能力：解决入口层对请求进行统一身份与完整性校验的问题，通过 `GatewayTokenAuthFilter`、`GatewayDPoPAuthFilter`、`ApiKeyFilter`、`SignVerificationFilter` 形成多层安全检查链。
-- 主体透传与响应治理能力：解决下游服务如何拿到统一身份上下文以及响应如何统一调整的问题，通过 `EdgePrincipalContextScopeFilter`、`PrincipalForwardFilter`、`ResponseAdjustFilter` 完成主体透传与响应补全。
-- 入口日志与文档聚合能力：解决边缘入口调试与多服务接口查看的问题，通过 `TraceLoggingFilter` 与 `OpenApiController` 提供链路日志和 Swagger UI 配置聚合。
-- 白名单与扩展治理能力：解决不同过滤器在接入场景下如何灵活配置放行的问题，通过 `GatewayWhiteList` 与 `WhiteListResolver` 提供统一白名单解析能力。
+该仓库位于 g2rain 后端平台链路入口层，承担网关路由编排、请求校验与下游转发职责。 它与 g2rain-basis、g2rain-basis-api、g2rain-common、g2rain-infra 等服务协同完成路由加载、业务转发与平台集成。 它更偏向平台入口与流量治理，而不是承载具体业务域逻辑。
 
-## 5. 技术栈
+## 业务域说明
 
-- 语言与运行时：`Java 25`
-- 后端框架：`Spring Boot 4.0.5`、`Spring Cloud 2025.1.1`
-- 网关实现：`Spring Cloud Gateway Server WebMVC`
-- 服务治理：`Nacos Discovery`、`Nacos Config`
-- 远程调用：`OpenFeign`、`LoadBalancer`
-- 缓存与同步：`Caffeine`、`Spring Cloud Stream`（Redis Binder）
-- 安全与签名：`Nimbus JOSE JWT`、DPoP、请求摘要签名
-- 可观测：`Actuator`、`OpenTelemetry`、`Micrometer Tracing`
-- 构建与交付：`Maven`、`Jib`、`Dockerfile`
+该仓库聚焦于 `网关路由与流量治理`。
 
-## 6. 快速开始
+核心对象包括：
+- 登录令牌
+- 访问令牌
+- 路由
+- 权限
+- 应用
+- 主体
 
-### 环境要求
+主要流程包括：
+- 路由增量同步与刷新流程
+- 网关过滤器链鉴权与签名校验流程
+- 主体透传与统一响应调整流程
 
-- `JDK 25`
-- `Maven 3.9+`
-- 可用的 `Nacos`
-- 可用的 `Redis`
-- 可访问的 `g2rain-infra` 与 `g2rain-basis`
+## 功能概览
 
-### 关键配置
+| 能力 | 说明 |
+| --- | --- |
+| 路由增量同步 | 订阅同步消息，对路由定义执行增量更新并刷新网关内存状态。 |
+| 网关安全过滤 | 在入口过滤器链中执行令牌校验、DPoP 校验与请求签名校验。 |
+| 主体上下文透传 | 将认证后的主体信息透传给下游服务，保持链路中的身份上下文一致。 |
+| 网关文档聚合 | 基于当前路由视图聚合并暴露下游服务的 OpenAPI 文档入口。 |
+| JWT 与密钥管理 | 基于 Nimbus JOSE JWT 处理令牌与密钥，支持从配置中心加载并切换签名密钥。 |
+| 会话与缓存 | 结合 Redis 或同步组件维护路由、鉴权与入口侧缓存状态。 |
+| 可观测性 | 暴露 Actuator 健康与信息端点，并引入追踪能力以便接入平台观测体系。 |
 
-当前仓库关键运行配置主要来自 `src/main/resources/application.yml` 与 Nacos 配置中心。
+## 使用场景
 
-| 变量名 | 说明 | 典型用途 |
+| 场景 | 说明 |
+| --- | --- |
+| 统一网关入口 | 当平台需要统一承接前端请求、匹配路由并转发到下游服务时使用。 |
+| 入口安全控制 | 当请求进入业务服务前需要统一执行令牌、DPoP、签名或 API 权限校验时使用。 |
+| 动态路由治理 | 当网关路由需要从基础设施服务加载，并根据同步消息动态刷新时使用。 |
+
+## 核心流程
+
+| 流程 | 关键步骤 | 代码线索 |
 | --- | --- | --- |
-| `SERVER_PORT` | 服务端口 | 默认 `8083` |
-| `SPRING_PROFILES_ACTIVE` | 启动环境 | 区分 `dev` 等 profile |
-| `NACOS_SERVER_ADDR` | Nacos 地址 | 服务发现与配置中心 |
-| `SPRING_CLOUD_NACOS_DISCOVERY_*` | 注册中心认证与命名空间 | 服务注册 |
-| `SPRING_CLOUD_NACOS_CONFIG_*` | 配置中心认证与命名空间 | 外部配置拉取 |
-| `SPRING_KAFKA_ENABLED` | 是否启用 Kafka | 日志等可选扩展 |
-| `SPRING_KAFKA_BOOTSTRAP_SERVERS` | Kafka 地址 | 启用 Kafka 时生效 |
+| 动态路由加载 | 服务启动后从基础设施服务读取路由定义 → 写入内存路由仓库 → 刷新网关运行时路由视图 | MemoryRouteLoader、InfraServiceClient、GatewayRouteLoader |
+| 入口过滤器链 | 请求进入网关过滤器链 → 执行令牌、DPoP、签名或 API 权限校验 → 校验通过后透传主体上下文并转发下游服务 | GatewayTokenAuthFilter、GatewayDPoPAuthFilter、SignVerificationFilter、PrincipalForwardFilter |
 
-建议：
-- `spring.application.name` 为 `g2rain-gateway`，排查 Nacos 注册列表时要注意与仓库名不同。
-- `gateway-white-list` 应与各过滤器的接入策略一并维护。
-- `Dockerfile` 默认暴露 `8080`，实际监听端口仍以运行配置为准。
+## 流程图
 
-### 本地构建
-
-```bash
-mvn clean package -DskipTests
+```mermaid
+flowchart TD
+  A[前端或客户端请求] --> B[g2rain-gateway-webflux]
+  B --> C[加载并匹配动态路由]
+  C --> D[令牌/DPoP/签名/API 权限校验]
+  D --> E[主体上下文透传]
+  E --> F[转发下游平台服务]
+  G[g2rain-infra 路由定义] --> C
+  H[g2rain-syncer 同步消息] --> C
 ```
 
-### 本地运行
+## 技术栈
 
-```bash
-mvn spring-boot:run
-```
+| 类别 | 说明 |
+| --- | --- |
+| 运行时 | Java 25、Spring Boot 4.0.5、Spring Cloud 2025.1.1 |
+| 安全与令牌 | Nimbus JOSE JWT |
+| 基础设施 | Redis、Nacos、OpenFeign、Spring Cloud LoadBalancer |
+| 内部 API | g2rain-basis-api |
+| 协同服务 | g2rain-infra |
+| 其他 | SpringDoc OpenAPI、Micrometer Tracing、OpenTelemetry、Lombok |
 
-或：
+## 环境要求
 
-```bash
-java -jar target/g2rain-gateway-webmvc-1.0.0.jar
-```
+- JDK 25+
+- Maven 3.9+
+- Redis
+- Nacos
+- 可访问的 g2rain-infra 服务
+- 可访问的 g2rain-basis 服务
 
-### 镜像构建
+## 快速开始
 
-```bash
-mvn clean compile jib:dockerBuild -DskipTests=true
-```
+| 步骤 | 命令或位置 | 说明 |
+| --- | --- | --- |
+| 准备运行环境 | JDK 25+、Maven 3.9+、Redis、Nacos | 后端服务启动前需要准备 Java 构建环境和平台依赖的基础设施。 |
+| 调整配置 | `src/main/resources/application.yml` | 按需设置 SERVER_PORT、SPRING_PROFILES_ACTIVE、NACOS_SERVER_ADDR 等环境变量。 网关还需要保证 g2rain-infra、g2rain-basis 等下游服务可访问。 |
+| 构建项目 | `mvn clean package` | 执行 Maven 构建并生成可执行 Jar。 |
+| 本地启动 | `mvn spring-boot:run` | 以当前 profile 启动服务，默认端口以 application.yml 中的 SERVER_PORT 为准。 |
+| 验证服务 | `GET /actuator/health` | 服务启动后可通过健康检查确认运行状态。 |
 
-## 7. 项目结构
+版本号以项目构建配置为准，当前识别为 `1.0.0`。
 
-本章回答“代码与模块是如何组织的、排查和扩展时应该先看哪里”。
+## 配置说明
 
-```text
-g2rain-gateway-webmvc/
-├── Dockerfile
-├── pom.xml
-└── src/
-    ├── main/java/com/g2rain/gateway/
-    │   ├── route
-    │   ├── filters
-    │   ├── cache
-    │   ├── client
-    │   ├── matcher
-    │   ├── config
-    │   ├── whitelist
-    │   ├── controller
-    │   ├── token
-    │   └── utils
-    ├── main/resources/
-    └── test/java/com/g2rain/gateway/
-```
+### 运行配置
 
-### 结构说明
+| 配置项 | 说明 |
+| --- | --- |
+| `SERVER_PORT` | 默认 8083 |
+| `SPRING_PROFILES_ACTIVE` | 默认 profile 为 dev |
 
-- `route`：承载动态路由加载、编译、持有与运行期快照能力。
-- `filters`：承载 Servlet 级与路由级过滤链，是 WebMVC 网关的核心治理入口。
-- `cache`：承载路由同步与侧车缓存逻辑。
-- `client`：承载对 `g2rain-infra`、`g2rain-basis` 的 Feign 协作接口。
-- `matcher`：承载方法与路径规则编译、匹配能力。
-- `config` / `whitelist`：承载白名单、密钥、运行时与过滤器配置。
-- `controller`：承载 OpenAPI 聚合入口。
-- `test`：覆盖 `route`、`matcher`、`cache` 等核心模块测试。
+### 平台集成配置
 
-### 代码查阅指引
+| 配置项 | 说明 |
+| --- | --- |
+| `NACOS_SERVER_ADDR` | 默认指向 127.0.0.1:8848，用于服务发现与配置中心连接 |
+| `spring.cloud.stream.bindings.input.destination` | 订阅 g2rain-syncer 消息通道，用于网关路由等状态同步。 |
 
-- 查看动态路由加载与切换时，优先看 `GatewayRouteLoader`、`RouteCompiler`、`RouterFuncHolder`。
-- 查看边缘安全链时，优先看 `GatewayTokenAuthFilter`、`GatewayDPoPAuthFilter`、`ApiKeyFilter`、`SignVerificationFilter`。
-- 查看主体透传与响应补全时，优先看 `EdgePrincipalContextScopeFilter`、`PrincipalForwardFilter`、`ResponseAdjustFilter`。
-- 查看路由增量同步时，优先看 `RouteSync`。
-- 查看文档聚合时，优先看 `OpenApiController`。
-- 查看过滤器白名单策略时，优先看 `GatewayWhiteList`、`WhiteListResolver`。
+### 敏感配置
 
-## 8. 核心业务流程
+| 配置项 | 说明 |
+| --- | --- |
+| `spring.config.import` | 可选导入 g2rain-token-keypair.yml，用于加载令牌密钥等敏感配置 |
 
-本章回答“这些能力在运行时是如何串起来工作的”。
+### 观测配置
 
-#### 1. 动态路由初始化主线
+| 配置项 | 说明 |
+| --- | --- |
+| `management.endpoints.web.exposure.include` | 默认暴露 health、info 等基础观测端点 |
 
-- 服务启动后，`GatewayRouteLoader` 会先从 `g2rain-infra` 拉取平台定义的路由清单。
-- `RouteCompiler` 会把路由定义编译成 `RouterFunction` 与匹配规则。
-- 编译结果一次性写入 `RouterFuncHolder`，形成内存快照。
-- 这一主线解决的是边缘入口如何在不依赖本地数据库的前提下稳定持有平台路由的问题。
+### 消息配置
 
-#### 2. 路由增量同步主线
+| 配置项 | 说明 |
+| --- | --- |
+| `SPRING_KAFKA_ENABLED` | 控制 Kafka 相关能力是否启用，默认关闭。 |
 
-- `RouteSync` 订阅 `g2rain-syncer` 中的路由变更消息。
-- 当单条路由发生新增、更新或删除时，系统只增量处理该条定义。
-- 编译后的路由再次写入内存快照，避免全量重建。
-- 这一主线解决的是平台路由如何在运行期快速生效的问题。
+## 构建与镜像
 
-#### 3. WebMVC 双层过滤主线
+| 目标 | 命令 | 产物 | 说明 |
+| --- | --- | --- | --- |
+| 可执行 Jar | `mvn clean package` | `g2rain-gateway-webmvc-1.0.0.jar` | 执行 Maven 标准构建，生成服务可执行产物。 |
+| 本地运行 | `mvn spring-boot:run` | 本地 Spring Boot 进程 | 使用当前 profile 启动服务，便于本地联调。 |
+| 容器镜像 | `mvn compile jib:dockerBuild` | 本地 Docker 镜像 | 通过 Jib 构建容器镜像，无需手写镜像构建流程。 |
+| Dockerfile 镜像 | `docker build .` | 自定义 Docker 镜像 | 仓库提供 Dockerfile，可按组织镜像规范封装部署。 |
 
-- 请求先经过 Servlet 级过滤器，如 `EdgePrincipalContextScopeFilter`、`GlobalErrorFilter`、`CachedBodyFilter`。
-- 然后进入路由级 `HandlerFilterFunction` 链，包括日志、JWT、DPoP、签名、透传、响应治理等环节。
-- 两层链路分工明确：前者负责请求作用域与底层包装，后者负责路由级治理。
-- 这一主线是 WebMVC 实现区别于 WebFlux 实现的重要边界。
+## 代码质量与测试
 
-#### 4. 边缘安全与主体透传主线
+| 检查项 | 命令 | 说明 |
+| --- | --- | --- |
+| Maven Enforcer | `mvn validate` | 约束 JDK 版本、Maven 版本与依赖规则。 |
+| Checkstyle | `mvn checkstyle:check` | 检查 Java 代码风格与组织规范。 |
+| PMD | `mvn pmd:check` | 执行静态规则检查，识别潜在代码问题。 |
+| SpotBugs | `mvn spotbugs:check` | 识别潜在缺陷和风险代码。 |
+| JaCoCo | `mvn test jacoco:report` | 运行测试并生成覆盖率报告。 |
 
-- `GatewayTokenAuthFilter` 负责 JWT 校验，`GatewayDPoPAuthFilter` 负责 DPoP 校验。
-- `ApiKeyFilter`、`SignVerificationFilter` 负责 API Key 与请求签名完整性校验。
-- 校验通过后，主体上下文写入 `EdgePrincipalContext`，并由 `PrincipalForwardFilter` 透传到下游。
-- 这一主线解决的是边缘入口如何统一承接平台身份与安全链路的问题。
+## 接口示例
 
-#### 5. 文档聚合与服务目录主线
+| 示例 | 方法 | 路径 | 用途 | 调用示例 |
+| --- | --- | --- | --- | --- |
+| 查看聚合文档 | GET | `/swagger-ui-config` | 查看网关聚合后的 OpenAPI 文档配置。 | `curl http://localhost:8083/swagger-ui-config` |
 
-- `OpenApiController` 会基于当前路由与服务注册列表生成 Swagger UI 配置。
-- 网关据此为多服务提供统一文档切换入口。
-- 这一主线解决的是多服务联调时文档入口分散的问题。
+## 安全说明
 
-## 9. 常用命令
+| 主题 | 说明 |
+| --- | --- |
+| 入口统一校验 | 网关承担入口令牌、DPoP、签名和权限过滤职责，下游服务不应假设未认证请求可信。 |
+| 主体透传 | 主体上下文透传应只发生在可信链路内，生产环境需要配合网关、服务发现和网络边界控制。 |
+| 密钥配置 | 令牌密钥和签名材料应通过配置中心或安全配置系统维护，不应写入公开仓库。 |
 
-```bash
-mvn clean package
-mvn spring-boot:run
-mvn test
-mvn jacoco:report
-mvn clean compile jib:dockerBuild -DskipTests=true
-```
+## 与关联仓库的关系
 
-## 10. 质量与测试
+本仓库作为平台统一入口网关，与 g2rain-infra、g2rain-basis 协同完成路由加载、业务转发、主体透传与缓存刷新。
 
-- `pom.xml` 已集成 Enforcer、Checkstyle、PMD、SpotBugs、JaCoCo。
-- 当前已识别 `route`、`matcher`、`cache` 等相关测试。
-- 建议后续继续补齐 JWT/DPoP、签名校验、OpenAPI 聚合等关键链路测试。
-- `ApiPermissionFilter` 当前默认未装载为 Bean，测试与文档需明确这是预留扩展点。
+## 模块说明
 
-## 11. 相关仓库
+| 模块 | 职责说明 | 代码线索 |
+| --- | --- | --- |
+| 入口安全过滤 | 在请求进入下游服务前执行令牌、DPoP、签名与 API 权限校验。 | GatewayTokenAuthFilter、GatewayDPoPAuthFilter、SignVerificationFilter、ApiPermissionFilter |
+| 主体上下文透传 | 将认证后的主体上下文、身份信息与链路信息透传给下游服务。 | PrincipalForwardFilter、EdgePrincipalContextScopeFilter |
+| 网关文档聚合 | 基于网关路由视图聚合并暴露平台服务的 OpenAPI 文档入口。 | OpenApiController |
 
-- `g2rain-infra`：路由定义与部分基础数据权威来源
-- `g2rain-basis`：业务支撑 API 与主体数据协作来源
-- `g2rain-iam`：统一身份认证与令牌服务
-- `g2rain-main-shell`：主壳与统一交互入口
-- `g2rain-gateway-webflux`：边缘入口层的响应式实现
+## 职责边界
 
-## 12. 使用建议
+该仓库主要负责：
+- 负责网关入口层的路由匹配、过滤器编排与下游转发
+- 负责网关层认证、签名校验与主体上下文透传
+- 负责路由定义加载、缓存刷新与入口观测能力
 
-- 适合作为平台统一边缘入口独立部署，而不是与业务服务混合部署。
-- 适合需要 Servlet 过滤器与 RouterFunction 双层治理能力的场景。
-- 生产环境请重点核对白名单、签名策略、JWT 密钥来源与下游服务发现配置。
-- 若需要启用 `ApiPermissionFilter`，应同步确认 Bean 装载与规则来源完整性。
+该仓库默认不负责：
+- 不负责具体业务域的核心业务实现
+- 不直接作为业务主数据的权威来源
+- 不替代下游服务完成业务处理与持久化职责
 
-## 13. 贡献指南
+## 常见问题
 
-欢迎通过文档改进、Issue 反馈、测试补充、代码优化、功能增强等形式参与贡献。
+| 问题 | 可能原因 | 处理建议 |
+| --- | --- | --- |
+| 路由未生效 | g2rain-infra 不可访问或同步消息未到达。 | 检查基础设施服务、路由配置和 g2rain-syncer 消息通道。 |
+| 请求被网关拒绝 | 令牌、DPoP、签名或 API 权限校验不通过。 | 检查请求头、签名材料、令牌有效性和应用权限配置。 |
+| Swagger 文档不可见 | 下游服务路由或 OpenAPI 聚合配置不完整。 | 确认路由已加载，并检查下游服务文档端点。 |
 
-建议流程：
-1. Fork 本仓库
-2. 创建特性分支
-3. 提交修改
-4. 推送分支
-5. 提交 Pull Request
+## 关联仓库
 
-提交前请尽量确保：
-- 遵循现有技术栈与代码规范
-- 更新相关文档
-- 如涉及认证、签名、路由刷新语义，补充必要测试
+| 仓库 | 协作关系 |
+| --- | --- |
+| g2rain-basis | 协同提供用户、应用、通行证等平台基础主数据能力。 |
+| g2rain-basis-api | 通过内部 API 访问平台基础主数据与基础服务能力。 |
+| g2rain-common | 复用平台公共规范、通用模型、工具能力或基础依赖约束。 |
+| g2rain-infra | 协同提供路由、配置、基础设施数据或平台运行支撑能力。 |
 
-## 14. 许可证
+## 参与贡献
 
-本项目基于 [Apache 2.0许可证](LICENSE) 开源。
+我们欢迎所有形式的贡献：Issue 反馈、文档改进、功能建议与代码提交。
 
-## 15. 联系我们
+推荐流程：
 
-- **站点**: https://www.g2rain.com/
-- **Issues**: [GitHub Issues](https://github.com/g2rain/g2rain/issues)
-- **讨论**: [GitHub Discussions](https://github.com/g2rain/g2rain/discussions)
-- **邮箱**: g2rain_developer@163.com
+1. Fork 本仓库。
+2. 创建特性分支：`git checkout -b feature/your-feature-name`。
+3. 提交更改：`git commit -m "Add some feature"`。
+4. 推送分支：`git push origin feature/your-feature-name`。
+5. 提交 Pull Request。
 
-## 16. 致谢
+代码贡献前请尽量补充必要的测试和文档，并确保构建、测试与静态检查通过。
 
-感谢所有为这个项目做出贡献的开发者们。
+## 许可证
 
-如果这个项目对您有帮助，欢迎 Star 支持。
+本项目基于 [Apache 2.0许可证](https://github.com/g2rain/g2rain-common/blob/main/LICENSE) 开源。
+
+## 联系我们
+
+- Issues: [GitHub Issues](https://github.com/g2rain/g2rain/issues)
+- 讨论: [GitHub Discussions](https://github.com/g2rain/g2rain/discussions)
+- 邮箱: g2rain_developer@163.com
+
+## 致谢
+
+感谢所有为 g2rain 项目提交 Issue、代码、文档、建议和使用反馈的开发者们！
