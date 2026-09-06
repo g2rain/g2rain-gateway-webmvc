@@ -1,0 +1,60 @@
+schemaVersion: 1
+name: g2rain-gateway-webmvc
+family: backend-foundation-service
+implementationType: webmvc
+role: G2rain Servlet/MVC.fn 统一入口网关
+version: 1.0.0
+license: Apache-2.0
+architectureBaseline:
+  repository: https://github.com/g2rain/g2rain
+  ref: feature/g2rain-architectur-init
+  profile: docs/architecture/profiles/gateway-service
+  version: 1.0.0-draft
+  status: planned
+  targetRef: architecture-v1.3.0
+  deviations: docs/architecture/deviations.md
+toolchain:
+  java: "25+"
+  maven: "3.9+"
+  springBoot: 4.0.5
+  springCloud: 2025.1.1
+  springCloudAlibaba: 2025.1.0.0
+  gateway: Spring Cloud Gateway Server WebMVC
+  transport: Servlet MVC.fn
+  internalClients: OpenFeign
+runtime:
+  mainClass: com.g2rain.gateway.Application
+  serviceName: g2rain-gateway
+  defaultPort: 8083
+  defaultProfile: dev
+  virtualThreads: true
+  routeControlPlane: g2rain-basis
+  discoveryAndConfig: Nacos
+  syncBinder: Redis
+publicEndpoints:
+  - "GET /swagger-ui-config"
+  - "GET /actuator/health"
+  - "GET /actuator/info"
+filterChain:
+  servlet: [EdgePrincipalContextScopeFilter:+0, GlobalErrorFilter:+100, CachedBodyFilter:+200]
+  route: [TraceLoggingFilter:+300, ApiKeyFilter:+350, GatewayTokenAuthFilter:+400, GatewayDPoPAuthFilter:+500, ApiPermissionFilter:+600, SignVerificationFilter:+700, PrincipalForwardFilter:+800]
+  response: [TraceLoggingFilter, ResponseAdjustFilter:+900]
+collaborators:
+  - {repository: g2rain/g2rain-basis, role: 路由、服务注册、权限、名称与静态令牌上下文}
+  - {repository: g2rain/g2rain-infra, role: 国际化错误消息}
+  - {repository: g2rain/g2rain-iam, role: JWT、DPoP 与客户端认证契约}
+  - {repository: g2rain/g2rain-syncer, role: 路由和缓存变更消息}
+commands:
+  test: mvn test
+  package: mvn clean package
+  run: mvn spring-boot:run
+  quality: [mvn checkstyle:check, mvn pmd:check, mvn spotbugs:check]
+validation:
+  reviewedAt: "2026-09-06"
+  command: mvn test
+  status: dependency-resolution-failed
+  testsRun: 0
+  failure: com.g2rain:g2rain-infra-api:1.0.0 could not be resolved
+  discoveredTestClasses: 4
+  discoveredTestMethods: 15
+  unverified: [编译与测试, JaCoCo, 静态检查, 外部服务联调, Jar与镜像]
