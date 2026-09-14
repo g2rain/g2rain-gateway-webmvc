@@ -14,4 +14,4 @@
 
 `TraceLoggingFilter`（+300）→ `ApiKeyFilter`（+350）→ `GatewayTokenAuthFilter`（+400）→ `GatewayDPoPAuthFilter`（+500）→ `ApiPermissionFilter`（+600）→ `SignVerificationFilter`（+700）→ `PrincipalForwardFilter`（+800）。响应阶段再执行日志与 `ResponseAdjustFilter`（+900）。
 
-顺序、跳过条件和白名单都是安全契约。
+顺序、跳过条件和白名单都是安全契约。`SessionType=MEMBER` 跳过 DPoP/摘要、入口走 `MemberPerm(organId)` 并透传 `X-MEMBER-ID`，见 [MEMBER 会话入口处理](../design/member-session-gateway.md)。

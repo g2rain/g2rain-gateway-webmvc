@@ -154,6 +154,7 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
         context.setSessionType(tokenPayload.getSessionType());
         context.setPassportId(tokenPayload.getPassportId());
         context.setUserId(tokenPayload.getUserId());
+        context.setMemberId(tokenPayload.getMemberId());
         context.setName(tokenPayload.getName());
         context.setAdminUser(tokenPayload.isAdminUser());
         context.setOrganType(tokenPayload.getOrganType());

@@ -63,7 +63,7 @@
         <commons.lang3.version>3.20.0</commons.lang3.version>
         <caffeine.version>3.2.3</caffeine.version>
         <nimbus.jose.jwt.version>10.9</nimbus.jose.jwt.version>
-        <g2rain.common.version>1.0.6</g2rain.common.version>
+        <g2rain.common.version>1.0.8</g2rain.common.version>
         <springdoc.openapi.version>3.0.2</springdoc.openapi.version>
         <g2rain.feign.plugin.version>1.0.3</g2rain.feign.plugin.version>
         <g2rain.cache.sync.version>1.0.3</g2rain.cache.sync.version>

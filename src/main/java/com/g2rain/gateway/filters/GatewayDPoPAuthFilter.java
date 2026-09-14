@@ -1,6 +1,7 @@
 package com.g2rain.gateway.filters;
 
 
+import com.g2rain.common.enums.SessionType;
 import com.g2rain.common.exception.BusinessException;
 import com.g2rain.common.exception.SystemErrorCode;
 import com.g2rain.common.utils.Collections;
@@ -54,6 +55,7 @@ import java.util.stream.Stream;
  * <p>
  * 校验 {@code DPoP} 头中的 Proof JWT，并写入摘要上下文供 {@link SignVerificationFilter} 使用。
  * {@link EdgePrincipalContext#isStaticTokenAuthenticated()} 为真时跳过。
+ * {@link SessionType#MEMBER} 会话由服务端客服持 Bearer Token 调用，不绑定 DPoP，同样跳过。
  * </p>
  *
  * @author alpha
@@ -95,7 +97,8 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
             return next.handle(request);
         }
 
-        if (EdgePrincipalContextHolder.require().isStaticTokenAuthenticated()) {
+        EdgePrincipalContext authContext = EdgePrincipalContextHolder.require();
+        if (authContext.isStaticTokenAuthenticated() || SessionType.isMember(authContext.getSessionType())) {
             return next.handle(request);
         }
 
