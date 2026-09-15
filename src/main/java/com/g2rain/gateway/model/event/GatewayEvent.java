@@ -100,6 +100,11 @@ public class GatewayEvent {
     private Long userId;
 
     /**
+     * 会员 ID（SessionType=MEMBER）
+     */
+    private Long memberId;
+
+    /**
      * 真实姓名
      * <p>用于展示或身份确认。</p>
      */

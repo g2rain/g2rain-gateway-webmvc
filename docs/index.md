@@ -17,6 +17,8 @@
 - [测试](development/testing.md)
 - [完成定义](development/definition-of-done.md)
 - [Gateway 契约](api/gateway-contracts.md)
+- [MEMBER 会话入口处理](design/member-session-gateway.md)
+- [MEMBER 接口权限校验升级](design/member-api-permission-upgrade.md)
 - [配置](operations/configuration.md)
 - [部署](operations/deployment.md)
 - [故障排查](operations/troubleshooting.md)

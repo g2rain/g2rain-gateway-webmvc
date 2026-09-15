@@ -12,6 +12,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.core.Ordered;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.function.HandlerFilterFunction;
 import org.springframework.web.servlet.function.HandlerFunction;
@@ -20,19 +21,19 @@ import org.springframework.web.servlet.function.ServerResponse;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 /**
  * Principal 转发过滤器。
  * <p>
  * 将 {@link EdgePrincipalContext} 中可透传的身份字段写入请求头，供下游服务消费；
- * 同时移除敏感认证头（如 Token / DPoP）避免继续向下游泄露。
+ * 同时移除外部伪造的主体头与敏感认证头（如 Token / DPoP），避免继续向下游泄露。
  * </p>
  *
  * <ul>
- *     <li>按 {@link PrincipalHeaders} 将上下文信息写入请求头</li>
+ *     <li>先移除全部 {@link PrincipalHeaders}，再按上下文以 set/replace 写入可信值</li>
+ *     <li>白名单请求也清除外部主体头，但不注入认证上下文</li>
  *     <li>仅对姓名相关头（{@code name}/{@code organ-name}）做 URL 编码</li>
  *     <li>移除 {@code Authorization}、{@code DPoP} 与调试秘钥头</li>
  * </ul>
@@ -65,8 +66,8 @@ public class PrincipalForwardFilter implements HandlerFilterFunction<ServerRespo
      * Principal 请求头透传入口。
      *
      * <p>
-     * 处理顺序：白名单放行 -> 从 {@link EdgePrincipalContext} 读取身份字段 ->
-     * 注入请求头（必要字段做 URL 编码）-> 移除敏感认证头 -> 继续执行后续链路。
+     * 处理顺序：清除外部主体头 ->（非白名单）从 {@link EdgePrincipalContext} 重建可信头
+     * -> 移除敏感认证头 -> 继续执行后续链路。
      * </p>
      *
      * @param req  当前请求
@@ -76,57 +77,64 @@ public class PrincipalForwardFilter implements HandlerFilterFunction<ServerRespo
      */
     @Override
     public ServerResponse filter(@NonNull ServerRequest req, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
-        // 获取当前过滤器的类名（用于白名单判断）
         String filterName = this.getClass().getSimpleName();
+        ServerRequest.Builder builder = ServerRequest.from(req);
+        builder.headers(this::stripPrincipalHeaders);
 
-        // 判断当前请求是否命中白名单规则
-        // 命中则跳过本过滤器，直接进入下一个过滤器
         if (whiteListResolver.shouldExclude(filterName, req)) {
-            return next.handle(req);
+            return next.handle(builder.build());
         }
 
-        // 获取上下文
         EdgePrincipalContext context = EdgePrincipalContextHolder.require();
-        ServerRequest.Builder builder = ServerRequest.from(req);
+        applyTrustedHeaders(context, builder);
 
         HttpServletRequest request = req.servletRequest();
         String debugKeys = request.getHeader(Constants.DEBUG_KEY_HEADER);
         if (Strings.equals(DEBUG_KEY, debugKeys)) {
-            builder.headers(h -> h.add(PrincipalHeaders.DEBUG.getLower(), Boolean.TRUE.toString()));
+            // 须在剥离 / 重建之后写入，避免被 strip 或上下文空值覆盖逻辑干扰
+            builder.headers(h -> h.set(PrincipalHeaders.DEBUG.getLower(), Boolean.TRUE.toString()));
         }
 
-        // 基于上下文信息动态添加或移除 Header（仅写入 ServerRequest 视图）
-        applyHeaders(context, (name, value) -> builder.headers(h -> h.add(name, value)),
-            names -> builder.headers(h -> names.forEach(h::remove))
-        );
+        builder.headers(h -> {
+            h.remove(Constants.AUTHORIZATION_HEADER);
+            h.remove(Constants.CLIENT_PROOF_HEADER);
+            h.remove(Constants.DEBUG_KEY_HEADER);
+        });
 
-        // 继续执行下一个过滤器
         return next.handle(builder.build());
     }
 
     /**
-     * 根据 Principal 上下文对请求头进行处理：添加需要转发的 Principal Headers，
-     * 并移除敏感认证头。
-     *
-     * @param ctx     当前的 Principal 上下文，提供 header 值
-     * @param adder   添加 header 的回调函数，接受 header 名称和值
-     * @param remover 移除 header 的回调函数，接受要移除的 header 名称列表
+     * 移除全部 {@link PrincipalHeaders}（大小写别名），防止外部伪造值与网关重建值并存。
      */
-    private void applyHeaders(EdgePrincipalContext ctx, BiConsumer<String, String> adder, Consumer<List<String>> remover) {
-        // 遍历所有定义的 PrincipalHeaders
+    private void stripPrincipalHeaders(HttpHeaders headers) {
+        for (String name : principalHeaderNames()) {
+            headers.remove(name);
+        }
+    }
+
+    /**
+     * 按上下文以 set 语义写入可信主体头。
+     */
+    private void applyTrustedHeaders(EdgePrincipalContext ctx, ServerRequest.Builder builder) {
         for (PrincipalHeaders headerKey : PrincipalHeaders.values()) {
             String value = ctx.getValue(headerKey);
-            // 如果值为空则跳过
             if (Strings.isBlank(value)) {
                 continue;
             }
-
-            // 对 header 值进行 URL 编码并添加
-            adder.accept(headerKey.getLower(), encodeHeaderValue(headerKey, value));
+            String name = headerKey.getLower();
+            String encoded = encodeHeaderValue(headerKey, value);
+            builder.headers(h -> h.set(name, encoded));
         }
+    }
 
-        // 移除敏感认证头
-        remover.accept(List.of(Constants.AUTHORIZATION_HEADER, Constants.CLIENT_PROOF_HEADER, Constants.DEBUG_KEY_HEADER));
+    private static List<String> principalHeaderNames() {
+        List<String> names = new ArrayList<>(PrincipalHeaders.values().length * 2);
+        for (PrincipalHeaders header : PrincipalHeaders.values()) {
+            names.add(header.getLower());
+            names.add(header.getUpper());
+        }
+        return names;
     }
 
     /**
