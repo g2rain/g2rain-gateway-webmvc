@@ -1,7 +1,6 @@
 package com.g2rain.gateway.filters;
 
 
-import com.g2rain.common.enums.SessionType;
 import com.g2rain.common.exception.BusinessException;
 import com.g2rain.common.exception.SystemErrorCode;
 import com.g2rain.common.utils.Constants;
@@ -34,7 +33,7 @@ import java.util.Objects;
  * <p>
  * 比对 query 与 body 的规范化摘要与上下文中的预期值。
  * {@link EdgePrincipalContext#isStaticTokenAuthenticated()} 为真时跳过（静态 API Key 不走 DPoP 摘要体系）。
- * {@link SessionType#MEMBER} 会话同样跳过（无 DPoP 摘要上下文）。
+ * MEMBER 与其它会话同一协议，不因会话类型跳过。
  * </p>
  *
  * @author alpha
@@ -82,8 +81,7 @@ public class SignVerificationFilter implements HandlerFilterFunction<ServerRespo
         }
 
         EdgePrincipalContext principalContext = EdgePrincipalContextHolder.require();
-        if (principalContext.isStaticTokenAuthenticated()
-            || SessionType.isMember(principalContext.getSessionType())) {
+        if (principalContext.isStaticTokenAuthenticated()) {
             return next.handle(req);
         }
 

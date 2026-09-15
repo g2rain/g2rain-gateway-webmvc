@@ -1,7 +1,6 @@
 package com.g2rain.gateway.filters;
 
 
-import com.g2rain.common.enums.SessionType;
 import com.g2rain.common.exception.BusinessException;
 import com.g2rain.common.exception.SystemErrorCode;
 import com.g2rain.common.utils.Collections;
@@ -55,7 +54,6 @@ import java.util.stream.Stream;
  * <p>
  * 校验 {@code DPoP} 头中的 Proof JWT，并写入摘要上下文供 {@link SignVerificationFilter} 使用。
  * {@link EdgePrincipalContext#isStaticTokenAuthenticated()} 为真时跳过。
- * {@link SessionType#MEMBER} 会话由服务端客服持 Bearer Token 调用，不绑定 DPoP，同样跳过。
  * </p>
  *
  * @author alpha
@@ -98,7 +96,7 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
         }
 
         EdgePrincipalContext authContext = EdgePrincipalContextHolder.require();
-        if (authContext.isStaticTokenAuthenticated() || SessionType.isMember(authContext.getSessionType())) {
+        if (authContext.isStaticTokenAuthenticated()) {
             return next.handle(request);
         }
 
@@ -268,7 +266,7 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
     private void buildPrincipalContext(EdgePrincipalContext context, String hashAlgorithm, DPoPJWTPayload payload) {
         List<ApplicationScope> scopes = context.getApplicationScopes();
         if (Collections.isEmpty(scopes)) {
-            return;
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "applicationScopes");
         }
 
         ApplicationScope scope = scopes.stream().filter(s ->
@@ -276,7 +274,13 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
         ).findFirst().orElse(null);
 
         if (Objects.isNull(scope)) {
-            return;
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, payload.getAcd());
+        }
+        if (scope.getApplicationId() == null || scope.getApplicationId() <= 0L) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "applicationId");
+        }
+        if (scope.getApplicationOrganId() == null || scope.getApplicationOrganId() <= 0L) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "applicationOrganId");
         }
 
         // 通过 micrometer 获取 traceId

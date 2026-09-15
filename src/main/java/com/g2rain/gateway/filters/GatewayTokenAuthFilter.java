@@ -1,8 +1,12 @@
 package com.g2rain.gateway.filters;
 
 
+import com.g2rain.common.enums.OrganType;
+import com.g2rain.common.enums.SessionType;
+import com.g2rain.common.exception.SystemErrorCode;
 import com.g2rain.common.json.JsonCodec;
 import com.g2rain.common.json.JsonCodecFactory;
+import com.g2rain.common.utils.Collections;
 import com.g2rain.common.utils.Strings;
 import com.g2rain.common.web.TokenJWTPayload;
 import com.g2rain.gateway.enums.GatewayErrorCode;
@@ -150,6 +154,7 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
      * @param tokenPayload Token 解析后的载荷
      */
     private void buildPrincipalContext(EdgePrincipalContext context, TokenJWTPayload tokenPayload) {
+        validateMemberSessionClaims(tokenPayload);
         context.setClientId(tokenPayload.getClientId());
         context.setSessionType(tokenPayload.getSessionType());
         context.setPassportId(tokenPayload.getPassportId());
@@ -165,6 +170,33 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
         context.setApplicationScopes(tokenPayload.getApplicationScopes());
         context.setClientPublicKey(tokenPayload.getClientPublicKey());
         context.setRoleIds(tokenPayload.getRoleIds());
+    }
+
+    /**
+     * MEMBER 会话失败关闭：租户 organType、正数 organId/memberId、无员工主体、须有 scopes 与绑钥。
+     */
+    private void validateMemberSessionClaims(TokenJWTPayload tokenPayload) {
+        if (!SessionType.isMember(tokenPayload.getSessionType())) {
+            return;
+        }
+        if (!OrganType.isTenant(tokenPayload.getOrganType())) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "organType");
+        }
+        if (tokenPayload.getOrganId() == null || tokenPayload.getOrganId() <= 0L) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "organId");
+        }
+        if (tokenPayload.getMemberId() == null || tokenPayload.getMemberId() <= 0L) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "memberId");
+        }
+        if (tokenPayload.getUserId() != null || tokenPayload.getPassportId() != null) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "MEMBER");
+        }
+        if (Collections.isEmpty(tokenPayload.getApplicationScopes())) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "applicationScopes");
+        }
+        if (Strings.isBlank(tokenPayload.getClientPublicKey())) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "clientPublicKey");
+        }
     }
 
     /**
