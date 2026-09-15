@@ -65,11 +65,3 @@ validation:
   discoveredTestClasses: 4
   discoveredTestMethods: 15
   unverified: [编译与测试, JaCoCo, 静态检查, 外部服务联调, Jar与镜像]
-
-aiCoding:
-  instructionEntry: AGENTS.md
-  activeRequirement: docs/design/member-api-permission-upgrade.md
-  validation:
-    - 读取设计文档、源码、配置与 Git Diff
-    - 执行 mvn test
-    - 报告未验证事项和剩余风险
