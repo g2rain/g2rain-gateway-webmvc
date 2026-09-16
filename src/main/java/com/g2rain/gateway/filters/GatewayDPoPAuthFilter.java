@@ -95,7 +95,8 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
             return next.handle(request);
         }
 
-        if (EdgePrincipalContextHolder.require().isStaticTokenAuthenticated()) {
+        EdgePrincipalContext authContext = EdgePrincipalContextHolder.require();
+        if (authContext.isStaticTokenAuthenticated()) {
             return next.handle(request);
         }
 
@@ -265,7 +266,7 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
     private void buildPrincipalContext(EdgePrincipalContext context, String hashAlgorithm, DPoPJWTPayload payload) {
         List<ApplicationScope> scopes = context.getApplicationScopes();
         if (Collections.isEmpty(scopes)) {
-            return;
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "applicationScopes");
         }
 
         ApplicationScope scope = scopes.stream().filter(s ->
@@ -273,7 +274,13 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
         ).findFirst().orElse(null);
 
         if (Objects.isNull(scope)) {
-            return;
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, payload.getAcd());
+        }
+        if (scope.getApplicationId() == null || scope.getApplicationId() <= 0L) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "applicationId");
+        }
+        if (scope.getApplicationOrganId() == null || scope.getApplicationOrganId() <= 0L) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "applicationOrganId");
         }
 
         // 通过 micrometer 获取 traceId

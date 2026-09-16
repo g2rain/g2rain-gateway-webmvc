@@ -1,4 +1,8 @@
 # 启动示例: java -jar -Dspring.profiles.active=test -Dserver.port=8081 -Dnacos.server-addr=10.0.1.1:8848,10.0.1.2:8848 g2rain-iam-0.1.1.jar
+gateway:
+  member-permission:
+    mode: ${GATEWAY_MEMBER_PERMISSION_MODE:enforce}
+
 server:
   port: ${SERVER_PORT:8083}
   tomcat:
