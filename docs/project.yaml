@@ -49,6 +49,13 @@ commands:
   package: mvn clean package
   run: mvn spring-boot:run
   quality: [mvn checkstyle:check, mvn pmd:check, mvn spotbugs:check]
+documentation:
+  index: docs/index.md
+  api: docs/api/gateway-contracts.md
+  designs:
+    - docs/design/member-session-gateway.md
+    - docs/design/member-api-permission-upgrade.md
+  security: docs/security/security-boundaries.md
 validation:
   reviewedAt: "2026-09-06"
   command: mvn test

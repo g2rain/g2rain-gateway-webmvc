@@ -55,6 +55,7 @@ public final class EventBuilder {
         event.setSessionType(ctx.getSessionType());
         event.setPassportId(ctx.getPassportId());
         event.setUserId(ctx.getUserId());
+        event.setMemberId(ctx.getMemberId());
         event.setName(ctx.getName());
         event.setAdminUser(ctx.isAdminUser());
         event.setOrganId(ctx.getOrganId());

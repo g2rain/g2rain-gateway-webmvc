@@ -5,3 +5,5 @@
 - 其他路径由运行时路由定义产生。
 
 入口支持静态 API Key 或 JWT/DPoP 分流，再执行 API 权限和请求摘要校验。外部主体头不可信；`PrincipalForwardFilter` 只转发验证后重建的最小身份。下游领域授权不能省略。
+
+`SessionType=MEMBER`：验签 JWT 后写入 `memberId`（`X-MEMBER-ID`），并走与其它会话相同的 DPoP/摘要，入口走 `MemberPerm(organId)` 且要求 `organId`+`memberId`。详见 [MEMBER 会话入口处理](../design/member-session-gateway.md)。

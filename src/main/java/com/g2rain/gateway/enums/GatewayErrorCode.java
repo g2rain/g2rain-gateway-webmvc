@@ -14,7 +14,8 @@ public enum GatewayErrorCode implements ErrorCode {
     SUBSCRIPTION_EXPIRED("gateway.40003", "订阅已过期，请续费"),
     REQUEST_BODY_TOO_LARGE("gateway.40004", "请求体超过限制：{0:maxBytes} 字节"),
     API_KEY_INVALID("gateway.40005", "API Key 无效"),
-    API_KEY_REVOKED("gateway.40006", "API Key 已吊销");
+    API_KEY_REVOKED("gateway.40006", "API Key 已吊销"),
+    MEMBER_PERM_UNAVAILABLE("gateway.50301", "MEMBER 权限缓存不可用");
 
     private final String code;
 
