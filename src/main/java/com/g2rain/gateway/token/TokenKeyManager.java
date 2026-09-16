@@ -107,7 +107,7 @@ public class TokenKeyManager {
             });
         } catch (NacosException e) {
             // 如果密钥加载失败，则抛出业务异常，提示初始化 PEM 错误
-            throw new BusinessException(SystemErrorCode.SYSTEM_INTERNAL_ERROR, null, new String[]{"初始化Token公私钥"}, null, e);
+            throw new BusinessException(SystemErrorCode.SYSTEM_INTERNAL_ERROR, e, "初始化Token公私钥");
         }
     }
 
