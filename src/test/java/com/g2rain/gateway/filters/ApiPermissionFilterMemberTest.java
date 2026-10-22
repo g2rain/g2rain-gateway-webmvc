@@ -2,6 +2,7 @@ package com.g2rain.gateway.filters;
 
 import com.g2rain.common.enums.SessionType;
 import com.g2rain.common.exception.SystemErrorCode;
+import com.g2rain.gateway.cache.AnonymousPerm;
 import com.g2rain.gateway.cache.DefaultPerm;
 import com.g2rain.gateway.cache.MemberPerm;
 import com.g2rain.gateway.cache.UserPerm;
@@ -37,7 +38,8 @@ class ApiPermissionFilterMemberTest {
                                           MemberPermissionProperties props) {
         WhiteListResolver whiteListResolver = mock(WhiteListResolver.class);
         when(whiteListResolver.shouldExclude(anyString(), any(ServerRequest.class))).thenReturn(false);
-        return new ApiPermissionFilter(defaultPerm, userPerm, memberPerm, props, whiteListResolver);
+        return new ApiPermissionFilter(defaultPerm, userPerm, memberPerm, mock(AnonymousPerm.class), props,
+            whiteListResolver);
     }
 
     private MemberPermissionProperties enforceProps() {

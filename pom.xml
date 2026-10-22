@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.0.5</version>
+        <version>4.1.1</version>
     </parent>
 
     <groupId>com.g2rain</groupId>
@@ -53,16 +53,27 @@
     <properties>
         <revision>1.0.0</revision>
         <!--
-            spring boot 4.0.5 引入的是3.1.0 但是3.1.0 有漏洞, 所以升级到3.1.1,
-            后续如果升级spring boot 版本, 酌情是否删掉这个属性
+            Boot 4.1.1 基线仍低于部分安全修复线，临时覆盖；Boot/Cloud 抬升后可删。
+            - Jackson 3 / Jackson 2：jackson-bom.version、fasterxml.jackson.version
+            - Tomcat / Logback / SLF4J：tomcat.version、logback.version、slf4j.version
+            - ASM：asm.version（asm-bom）
+            - Bouncy Castle：bouncycastle.version（OpenFeign 传递）
+            - Kafka 压缩库：zstd-jni / lz4-java / snappy-java（kafka-clients 传递）
         -->
-        <jackson-bom.version>3.1.1</jackson-bom.version>
-        <spring.cloud.version>2025.1.1</spring.cloud.version>
+        <jackson-bom.version>3.2.3</jackson-bom.version>
+        <fasterxml.jackson.version>2.22.4</fasterxml.jackson.version>
+        <tomcat.version>11.0.27</tomcat.version>
+        <logback.version>1.6.5</logback.version>
+        <slf4j.version>2.0.20</slf4j.version>
+        <asm.version>9.11.1</asm.version>
+        <bouncycastle.version>1.86</bouncycastle.version>
+        <zstd-jni.version>1.5.7-24</zstd-jni.version>
+        <lz4-java.version>1.12.0</lz4-java.version>
+        <snappy-java.version>1.1.10.12</snappy-java.version>
+        <spring.cloud.version>2025.1.3</spring.cloud.version>
         <spring.alibaba.cloud.version>2025.1.0.0</spring.alibaba.cloud.version>
-        <commons.fileupload.version>1.6.0</commons.fileupload.version>
-        <commons.lang3.version>3.20.0</commons.lang3.version>
-        <caffeine.version>3.2.3</caffeine.version>
-        <nimbus.jose.jwt.version>10.9</nimbus.jose.jwt.version>
+        <caffeine.version>3.3.1</caffeine.version>
+        <nimbus.jose.jwt.version>10.10</nimbus.jose.jwt.version>
         <g2rain.common.version>1.0.8</g2rain.common.version>
         <springdoc.openapi.version>3.0.2</springdoc.openapi.version>
         <g2rain.feign.plugin.version>1.0.5</g2rain.feign.plugin.version>
@@ -71,14 +82,14 @@
         <g2rain.tracing.otel.version>1.0.5</g2rain.tracing.otel.version>
         <g2rain.infra.api.version>1.0.0</g2rain.infra.api.version>
         <g2rain.basis.api.version>1.0.0</g2rain.basis.api.version>
-        <maven.enforcer.plugin.version>3.6.2</maven.enforcer.plugin.version>
+        <maven.enforcer.plugin.version>3.6.3</maven.enforcer.plugin.version>
         <maven.checkstyle.plugin.version>3.6.0</maven.checkstyle.plugin.version>
         <maven.pmd.plugin.version>3.28.0</maven.pmd.plugin.version>
-        <spotbugs.maven.plugin.version>4.9.8.3</spotbugs.maven.plugin.version>
-        <jacoco.maven.plugin.version>0.8.14</jacoco.maven.plugin.version>
-        <flatten.maven.plugin.version>1.7.3</flatten.maven.plugin.version>
+        <spotbugs.maven.plugin.version>4.10.5.0</spotbugs.maven.plugin.version>
+        <jacoco.maven.plugin.version>0.8.15</jacoco.maven.plugin.version>
+        <flatten.maven.plugin.version>1.8.0</flatten.maven.plugin.version>
         <!-- Jib Maven 插件版本 -->
-        <jib.maven.plugin.version>3.5.1</jib.maven.plugin.version>
+        <jib.maven.plugin.version>3.5.2</jib.maven.plugin.version>
         <!-- 控制 maven.build.timestamp 的时间格式, 用于镜像构建标签 -->
         <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss</maven.build.timestamp.format>
         <maven.compiler.release>25</maven.compiler.release>
@@ -101,21 +112,44 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            <!--
-                spring-cloud-starter-openfeign 依赖版本漏洞, 所以引入这个版本控制,
-                后续整体升级 Spring Cloud 版本, 看看是否还需要这样版本的依赖
-                commons-fileupload 低版本存在漏洞
-                commons-lang3 版本过低, 与 springdoc 依赖的版本不一致
-            -->
             <dependency>
-                <groupId>commons-fileupload</groupId>
-                <artifactId>commons-fileupload</artifactId>
-                <version>${commons.fileupload.version}</version>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>${fasterxml.jackson.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
             <dependency>
-                <groupId>org.apache.commons</groupId>
-                <artifactId>commons-lang3</artifactId>
-                <version>${commons.lang3.version}</version>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm-bom</artifactId>
+                <version>${asm.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.luben</groupId>
+                <artifactId>zstd-jni</artifactId>
+                <version>${zstd-jni.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>at.yawk.lz4</groupId>
+                <artifactId>lz4-java</artifactId>
+                <version>${lz4-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.xerial.snappy</groupId>
+                <artifactId>snappy-java</artifactId>
+                <version>${snappy-java.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.github.ben-manes.caffeine</groupId>
@@ -348,7 +382,7 @@
                 <configuration>
                     <!-- 基础镜像，根据实际 JDK 版本选择 -->
                     <from>
-                        <image>docker://eclipse-temurin:25-jre</image>
+                        <image>docker://eclipse-temurin:25.0.4.1_1-jre</image>
                     </from>
                     <!-- 目标镜像名称 -->
                     <to>

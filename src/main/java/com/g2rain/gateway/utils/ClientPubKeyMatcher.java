@@ -1,6 +1,8 @@
 package com.g2rain.gateway.utils;
 
 
+
+import lombok.extern.slf4j.Slf4j;
 import com.g2rain.common.utils.Strings;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.JWK;
@@ -11,6 +13,7 @@ import java.util.Objects;
 /**
  * Token 与 DPoP 客户端公钥绑定校验（RFC 7638 JWK Thumbprint）。
  */
+@Slf4j
 public final class ClientPubKeyMatcher {
 
     private ClientPubKeyMatcher() {
@@ -26,6 +29,7 @@ public final class ClientPubKeyMatcher {
             return stored.toPublicJWK().computeThumbprint()
                 .equals(proofJwk.toPublicJWK().computeThumbprint());
         } catch (ParseException | JOSEException e) {
+            log.error("failed to matches", e);
             return false;
         }
     }

@@ -1,6 +1,8 @@
 package com.g2rain.gateway.filters;
 
 
+
+import lombok.extern.slf4j.Slf4j;
 import com.g2rain.common.exception.BusinessException;
 import com.g2rain.common.exception.SystemErrorCode;
 import com.g2rain.common.utils.Constants;
@@ -41,6 +43,7 @@ import java.util.Objects;
  */
 @Component
 @AllArgsConstructor
+@Slf4j
 public class SignVerificationFilter implements HandlerFilterFunction<ServerResponse, ServerResponse>, Ordered {
 
     /**
@@ -144,6 +147,7 @@ public class SignVerificationFilter implements HandlerFilterFunction<ServerRespo
             byte[] hash = digest.digest(Objects.nonNull(data) ? data : Constants.EMPTY_BYTE);
             return HEX_FORMAT.formatHex(hash);
         } catch (Exception e) {
+            log.error("failed to sha256", e);
             throw new BusinessException(SystemErrorCode.PARAM_VAL_INVALID, "ph_alg");
         }
     }
