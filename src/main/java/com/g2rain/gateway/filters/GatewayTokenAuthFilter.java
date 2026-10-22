@@ -176,15 +176,13 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
     }
 
     /**
-     * ANONYMOUS 会话失败关闭：租户机构、正数 organId / userId（访客）/ entryId，无账号、会员与角色，
-     * 非管理员、非运营机构，须有 scopes 与绑钥。
+     * ANONYMOUS 会话失败关闭：正数 organId / userId（访客）/ entryId，无账号、会员与角色，须有 scopes 与绑钥。
+     * <p>运营机构与租户机构都可开放匿名入口；但访客一律不享有管理员与运营机构特权，
+     * {@code adminUser} / {@code adminCompany} 为 true 即拒绝，避免数据隔离被整体放行。</p>
      */
     private void validateAnonymousSessionClaims(TokenJWTPayload tokenPayload) {
         if (!SessionType.isAnonymous(tokenPayload.getSessionType())) {
             return;
-        }
-        if (!OrganType.isTenant(tokenPayload.getOrganType())) {
-            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "organType");
         }
         if (!isPositive(tokenPayload.getOrganId())) {
             throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "organId");
