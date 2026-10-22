@@ -5,6 +5,7 @@ import com.g2rain.basis.enums.AuthorizationStatus;
 import com.g2rain.common.enums.SessionType;
 import com.g2rain.common.exception.SystemErrorCode;
 import com.g2rain.common.utils.Strings;
+import com.g2rain.gateway.cache.AnonymousPerm;
 import com.g2rain.gateway.cache.DefaultPerm;
 import com.g2rain.gateway.cache.MemberPerm;
 import com.g2rain.gateway.cache.UserPerm;
@@ -42,6 +43,8 @@ public class ApiPermissionFilter implements HandlerFilterFunction<ServerResponse
 
     private final MemberPerm memberPerm;
 
+    private final AnonymousPerm anonymousPerm;
+
     private final MemberPermissionProperties memberPermissionProperties;
 
     private final WhiteListResolver whiteListResolver;
@@ -72,6 +75,10 @@ public class ApiPermissionFilter implements HandlerFilterFunction<ServerResponse
 
         if (SessionType.isMember(context.getSessionType())) {
             return authorizeMember(request, next, context, apiId, applicationId);
+        }
+
+        if (SessionType.isAnonymous(context.getSessionType())) {
+            return authorizeAnonymous(request, next, context, apiId, applicationId);
         }
 
         BaseAuthority userApiPermission = userPerm.getApiPermission(
@@ -123,6 +130,26 @@ public class ApiPermissionFilter implements HandlerFilterFunction<ServerResponse
             throw e;
         } catch (Exception e) {
             throw new GatewayException(GatewayErrorCode.MEMBER_PERM_UNAVAILABLE, e);
+        }
+        throw new GatewayException(SystemErrorCode.UNAUTHORIZED, applicationId);
+    }
+
+    /**
+     * ANONYMOUS：接入码仍启用且机构已开通该接口才放行；不走员工角色链。
+     */
+    private ServerResponse authorizeAnonymous(ServerRequest request, HandlerFunction<ServerResponse> next,
+                                              EdgePrincipalContext context, Long apiId, Long applicationId)
+        throws Exception {
+        boolean allowed;
+        try {
+            allowed = anonymousPerm.hasApiPermission(context.getOrganId(), context.getEntryId(), apiId);
+        } catch (GatewayException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new GatewayException(GatewayErrorCode.ANONYMOUS_PERM_UNAVAILABLE, e);
+        }
+        if (allowed) {
+            return next.handle(request);
         }
         throw new GatewayException(SystemErrorCode.UNAUTHORIZED, applicationId);
     }

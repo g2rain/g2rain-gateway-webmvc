@@ -143,6 +143,7 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
 
             return payload;
         } catch (JOSEException | ParseException e) {
+            log.error("failed to inspectToken", e);
             throw new GatewayException(GatewayErrorCode.TOKEN_INVALID, "token");
         }
     }
@@ -155,6 +156,7 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
      */
     private void buildPrincipalContext(EdgePrincipalContext context, TokenJWTPayload tokenPayload) {
         validateMemberSessionClaims(tokenPayload);
+        validateAnonymousSessionClaims(tokenPayload);
         context.setClientId(tokenPayload.getClientId());
         context.setSessionType(tokenPayload.getSessionType());
         context.setPassportId(tokenPayload.getPassportId());
@@ -170,6 +172,45 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
         context.setApplicationScopes(tokenPayload.getApplicationScopes());
         context.setClientPublicKey(tokenPayload.getClientPublicKey());
         context.setRoleIds(tokenPayload.getRoleIds());
+        context.setEntryId(tokenPayload.getEntryId());
+    }
+
+    /**
+     * ANONYMOUS 会话失败关闭：租户机构、正数 organId / userId（访客）/ entryId，无账号、会员与角色，
+     * 非管理员、非运营机构，须有 scopes 与绑钥。
+     */
+    private void validateAnonymousSessionClaims(TokenJWTPayload tokenPayload) {
+        if (!SessionType.isAnonymous(tokenPayload.getSessionType())) {
+            return;
+        }
+        if (!OrganType.isTenant(tokenPayload.getOrganType())) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "organType");
+        }
+        if (!isPositive(tokenPayload.getOrganId())) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "organId");
+        }
+        if (!isPositive(tokenPayload.getUserId())) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "userId");
+        }
+        if (!isPositive(tokenPayload.getEntryId())) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "entryId");
+        }
+        if (tokenPayload.getPassportId() != null || tokenPayload.getMemberId() != null
+            || Collections.isNotEmpty(tokenPayload.getRoleIds())
+            || tokenPayload.isAdminUser() || tokenPayload.isAdminCompany()) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "ANONYMOUS");
+        }
+        if (Collections.isEmpty(tokenPayload.getApplicationScopes())) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "applicationScopes");
+        }
+        if (Strings.isBlank(tokenPayload.getClientPublicKey())) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "clientPublicKey");
+        }
+    }
+
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    private static boolean isPositive(Long value) {
+        return value != null && value > 0L;
     }
 
     /**
