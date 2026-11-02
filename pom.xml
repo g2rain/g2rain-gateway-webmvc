@@ -16,6 +16,15 @@
 
     <name>G2rain Gateway Webmvc</name>
 
+    <url>https://github.com/g2rain/g2rain-gateway-webmvc</url>
+
+    <scm>
+        <url>https://github.com/g2rain/g2rain-gateway-webmvc</url>
+        <connection>scm:git:https://github.com/g2rain/g2rain-gateway-webmvc.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/g2rain/g2rain-gateway-webmvc.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
+
     <description>
         A centralized gateway for the G2rain SaaS platform, responsible for routing, forwarding, and filtering
         all microservice API requests. It provides unified access control, security filtering, and traffic management to
@@ -83,10 +92,6 @@
         <spotbugs.maven.plugin.version>4.10.5.0</spotbugs.maven.plugin.version>
         <jacoco.maven.plugin.version>0.8.15</jacoco.maven.plugin.version>
         <flatten.maven.plugin.version>1.8.0</flatten.maven.plugin.version>
-        <!-- Jib Maven 插件版本 -->
-        <jib.maven.plugin.version>3.5.2</jib.maven.plugin.version>
-        <!-- 控制 maven.build.timestamp 的时间格式, 用于镜像构建标签 -->
-        <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss</maven.build.timestamp.format>
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
@@ -335,30 +340,6 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
-
-            <!-- 使用 Jib 构建 Docker 镜像 -->
-            <plugin>
-                <groupId>com.google.cloud.tools</groupId>
-                <artifactId>jib-maven-plugin</artifactId>
-                <version>${jib.maven.plugin.version}</version>
-                <configuration>
-                    <!-- 基础镜像，根据实际 JDK 版本选择 -->
-                    <from>
-                        <image>docker://eclipse-temurin:25.0.4.1_1-jre</image>
-                    </from>
-                    <!-- 目标镜像名称 -->
-                    <to>
-                        <image>g2rain/g2rain-gateway-webmvc:${project.version}</image>
-                    </to>
-                    <!-- 容器运行配置 -->
-                    <container>
-                        <mainClass>com.g2rain.gateway.Application</mainClass>
-                        <ports>
-                            <port>8080</port>
-                        </ports>
-                    </container>
-                </configuration>
             </plugin>
 
             <!-- 单元测试插件 -->
