@@ -1,12 +1,17 @@
-FROM eclipse-temurin:25.0.4.1_1-jre-alpine
-# 构建参数
-ARG JAR_FILE
+FROM eclipse-temurin:25.0.4.1_1-jre
+
+ARG JAR_FILE=target/g2rain-gateway-webmvc-1.0.0.jar
 ARG BUILD_VERSION
-# 环境变量
+ARG VCS_REF
+
+LABEL org.opencontainers.image.source="https://github.com/g2rain/g2rain-gateway-webmvc" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.title="g2rain-gateway-webmvc" \
+      org.opencontainers.image.version="${BUILD_VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}"
+
 ENV APP_VERSION=${BUILD_VERSION}
-# 复制应用
-COPY ${JAR_FILE} app.jar
-# 暴露端口
-EXPOSE 8080
-# 启动命令
-ENTRYPOINT ["java", "-jar", "/app.jar"]
+WORKDIR /app
+COPY ${JAR_FILE} /app/app.jar
+EXPOSE 8083
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

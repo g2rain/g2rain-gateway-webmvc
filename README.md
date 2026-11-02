@@ -6,15 +6,15 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-25-437291?logo=openjdk&logoColor=white)](https://openjdk.org/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.5-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
-[![Spring Cloud](https://img.shields.io/badge/Spring%20Cloud-2025.1.1-586069?logo=spring&logoColor=white)](https://spring.io/projects/spring-cloud)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.2-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![Spring Cloud](https://img.shields.io/badge/Spring%20Cloud-2025.1.4-586069?logo=spring&logoColor=white)](https://spring.io/projects/spring-cloud)
 [![Maven](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)](https://maven.apache.org/)
 
-下一代AI软件开发范式，AI原生Agent平台，开源的企业级SaaS底座。
+G2rain（谷雨）开源智能体平台的统一入口网关组件。
 
 统一网关入口服务，在过滤器链中执行令牌、DPoP 与签名校验；向下游透传主体上下文与身份信息；通过同步消息增量刷新路由与相关缓存
 
-[官网](https://www.g2rain.com) · [Issues](https://github.com/g2rain/g2rain/issues) · [Discussions](https://github.com/g2rain/g2rain/discussions)
+[官网](https://www.g2rain.com) · [完整文档](docs/index.md) · [中央 Gateway Profile](https://github.com/g2rain/g2rain/tree/feature/g2rain-architectur-init/docs/architecture/profiles/gateway-service) · [架构说明](docs/architecture/overview.md) · [Issues](https://github.com/g2rain/g2rain/issues) · [Discussions](https://github.com/g2rain/g2rain/discussions)
 
 ## 目录
 
@@ -30,6 +30,7 @@
 - 快速开始
 - 配置说明
 - 构建与镜像
+- GHCR 镜像发布
 - 代码质量与测试
 - 接口示例
 - 安全说明
@@ -50,7 +51,9 @@
 
 ## 平台定位
 
-该仓库位于 g2rain 后端平台链路入口层，承担网关路由编排、请求校验与下游转发职责。 它与 g2rain-basis、g2rain-basis-api、g2rain-common、g2rain-gateway-webflux、g2rain-infra 等服务协同完成路由加载、业务转发与平台集成。 它更偏向平台入口与流量治理，而不是承载具体业务域逻辑。
+G2rain（谷雨）是面向企业的开源智能体平台，以 SaaS 基座、知识库和前后端开发工具链支撑智能应用落地；现有 SaaS 基座、知识库和业务应用可用于私有部署，智能体平台与智能客服已开发完成并开源，商业化能力仍在规划。`g2rain-gateway-webmvc` 只是其中的统一入口网关实现：承担路由编排、请求校验和下游转发，不代表或单独提供平台的全部能力。
+
+本仓库是 `gateway-service 1.0.0-draft` 的计划接入 WebMVC 实现；该 Profile 仍处于 Draft，不能宣称已采用正式版。它与 g2rain-basis、g2rain-basis-api、g2rain-common、g2rain-infra、IAM 和同步服务协同完成路由加载、业务转发与平台集成。
 
 ## 业务域说明
 
@@ -100,7 +103,7 @@
 
 ```mermaid
 flowchart TD
-  A[前端或客户端请求] --> B[g2rain-gateway-webflux]
+  A[前端或客户端请求] --> B[g2rain-gateway-webmvc]
   B --> C[加载并匹配动态路由]
   C --> D[令牌/DPoP/签名/API 权限校验]
   D --> E[主体上下文透传]
@@ -113,7 +116,7 @@ flowchart TD
 
 | 类别 | 说明 |
 | --- | --- |
-| 运行时 | Java 25、Spring Boot 4.0.5、Spring Cloud 2025.1.1 |
+| 运行时 | Java 25、Spring Boot 4.1.2、Spring Cloud 2025.1.4 |
 | 安全与令牌 | Nimbus JOSE JWT |
 | 基础设施 | Redis、Nacos、OpenFeign、Spring Cloud LoadBalancer |
 | 内部 API | g2rain-basis-api |
@@ -181,8 +184,14 @@ flowchart TD
 | --- | --- | --- | --- |
 | 可执行 Jar | `mvn clean package` | `g2rain-gateway-webmvc-1.0.0.jar` | 执行 Maven 标准构建，生成服务可执行产物。 |
 | 本地运行 | `mvn spring-boot:run` | 本地 Spring Boot 进程 | 使用当前 profile 启动服务，便于本地联调。 |
-| 容器镜像 | `mvn compile jib:dockerBuild` | 本地 Docker 镜像 | 通过 Jib 构建容器镜像，无需手写镜像构建流程。 |
-| Dockerfile 镜像 | `docker build .` | 自定义 Docker 镜像 | 仓库提供 Dockerfile，可按组织镜像规范封装部署。 |
+| 容器镜像 | `docker build --build-arg JAR_FILE=target/g2rain-gateway-webmvc-1.0.0.jar --build-arg BUILD_VERSION=1.0.0 --build-arg VCS_REF=$(git rev-parse HEAD) -t ghcr.io/g2rain/g2rain-gateway-webmvc:1.0.0 .` | 本地 Docker 镜像 | 先执行 Maven 打包；本命令与 CI 使用同一 Dockerfile、Temurin 25.0.4.1_1 JRE、入口和端口。 |
+
+## GHCR 镜像
+
+- 镜像地址：`ghcr.io/g2rain/g2rain-gateway-webmvc`。
+- 仅在推送已进入 `main` 的稳定 Git tag（`vMAJOR.MINOR.PATCH`）时发布；工作流还会校验 tag 与 Maven 项目版本及 `docs/releases/v<版本>.md` 一致。
+- 每次成功发布两个标签：`1.0.0` 和 `sha-<完整提交 SHA>`；不发布 `latest`。
+- 拉取示例：`docker pull ghcr.io/g2rain/g2rain-gateway-webmvc:1.0.0`。匿名拉取须在首次成功推送后由维护者将 GHCR 包设为 Public；完整权限、构建、运行和发布操作见[部署文档](docs/operations/deployment.md)。
 
 ## 代码质量与测试
 
@@ -272,7 +281,7 @@ flowchart TD
 
 ## 许可证
 
-本项目基于 [Apache 2.0许可证](https://github.com/g2rain/g2rain-common/blob/main/LICENSE) 开源。
+本项目基于 [Apache 2.0 许可证](LICENSE) 开源。
 
 ## 联系我们
 

@@ -7,7 +7,7 @@
 - 中央 Profile：`gateway-service 1.0.0-draft`
 - 实现类型：`webmvc`
 - 采用状态：planned
-- 当前验证：`mvn test` 因 `g2rain-infra-api:1.0.0` 无法解析而失败
+- 当前验证：`mvn -B -ntp verify` 在 Maven Enforcer 检出 `swagger-annotations-jakarta` 2.2.46/2.2.55 上界冲突而失败；历史 `mvn test` 另因 `g2rain-infra-api:1.0.0` 无法解析失败
 
 本项目以 Spring Cloud Gateway Server WebMVC、MVC.fn、Servlet Filter、OpenFeign 和虚拟线程实现统一入口。它负责动态路由、API Key/JWT/DPoP、API 权限、签名、主体透传、响应处理及缓存同步，不拥有身份、权限、路由或领域主数据。
 

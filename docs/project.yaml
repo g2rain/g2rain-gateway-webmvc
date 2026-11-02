@@ -16,8 +16,8 @@ architectureBaseline:
 toolchain:
   java: "25+"
   maven: "3.9+"
-  springBoot: 4.0.5
-  springCloud: 2025.1.1
+  springBoot: 4.1.2
+  springCloud: 2025.1.4
   springCloudAlibaba: 2025.1.0.0
   gateway: Spring Cloud Gateway Server WebMVC
   transport: Servlet MVC.fn
@@ -57,11 +57,11 @@ documentation:
     - docs/design/member-api-permission-upgrade.md
   security: docs/security/security-boundaries.md
 validation:
-  reviewedAt: "2026-09-06"
-  command: mvn test
-  status: dependency-resolution-failed
+  reviewedAt: "2026-11-02"
+  command: mvn -B -ntp verify
+  status: enforcer-failed
   testsRun: 0
-  failure: com.g2rain:g2rain-infra-api:1.0.0 could not be resolved
+  failure: RequireUpperBoundDeps detected swagger-annotations-jakarta 2.2.46 from g2rain-common:1.0.9 and 2.2.55 from springdoc-openapi:3.2.0
   discoveredTestClasses: 4
   discoveredTestMethods: 15
-  unverified: [编译与测试, JaCoCo, 静态检查, 外部服务联调, Jar与镜像]
+  unverified: [编译与测试, JaCoCo, 静态检查, Docker构建与运行, GHCR推送与拉取, 外部服务联调]
