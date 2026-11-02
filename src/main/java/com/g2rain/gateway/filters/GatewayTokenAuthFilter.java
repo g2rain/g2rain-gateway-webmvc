@@ -239,6 +239,33 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
     }
 
     /**
+     * MEMBER 会话失败关闭：租户 organType、正数 organId/memberId、无员工主体、须有 scopes 与绑钥。
+     */
+    private void validateMemberSessionClaims(TokenJWTPayload tokenPayload) {
+        if (!SessionType.isMember(tokenPayload.getSessionType())) {
+            return;
+        }
+        if (!OrganType.isTenant(tokenPayload.getOrganType())) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "organType");
+        }
+        if (tokenPayload.getOrganId() == null || tokenPayload.getOrganId() <= 0L) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "organId");
+        }
+        if (tokenPayload.getMemberId() == null || tokenPayload.getMemberId() <= 0L) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "memberId");
+        }
+        if (tokenPayload.getUserId() != null || tokenPayload.getPassportId() != null) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "MEMBER");
+        }
+        if (Collections.isEmpty(tokenPayload.getApplicationScopes())) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "applicationScopes");
+        }
+        if (Strings.isBlank(tokenPayload.getClientPublicKey())) {
+            throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "clientPublicKey");
+        }
+    }
+
+    /**
      * 定义过滤器执行顺序。
      *
      * @return 执行优先级
