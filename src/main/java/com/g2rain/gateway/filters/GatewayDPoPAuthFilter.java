@@ -16,9 +16,11 @@ import com.g2rain.gateway.utils.ClientPubKeyMatcher;
 import com.g2rain.gateway.utils.Constants;
 import com.g2rain.gateway.whitelist.WhiteListResolver;
 import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.ECDSAVerifier;
+import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -111,6 +113,7 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
             // noinspection ConstantConditions
             signedJWT = SignedJWT.parse(jwt);
         } catch (ParseException e) {
+            log.error("failed to reloadKeys", e);
             throw new GatewayException(SystemErrorCode.PARAM_VAL_INVALID, "DPoP Proof");
         }
 
@@ -164,7 +167,10 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
 
             // 校验 JWK 类型
             JWK jwk = header.getJWK();
-            if (!(jwk instanceof ECKey ecKey)) {
+            // 客户端只生成 ES256（P-256）密钥，其他算法或曲线一律拒绝
+            if (!(jwk instanceof ECKey ecKey)
+                || !JWSAlgorithm.ES256.equals(header.getAlgorithm())
+                || !Curve.P_256.equals(ecKey.getCurve())) {
                 throw new GatewayException(SystemErrorCode.PARAM_VAL_INVALID, "DPoP Proof JWK");
             }
 
@@ -183,6 +189,7 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
             // context参数：在当前的方法体内, 只是为了设置参数hash算法名称
             return header.getCustomParams().getOrDefault("ph_alg", "").toString();
         } catch (JOSEException e) {
+            log.error("failed to verifyHeader", e);
             throw new GatewayException(SystemErrorCode.PARAM_VAL_INVALID, "DPoP Proof JWS");
         }
     }
@@ -252,6 +259,7 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
             payload.setPha(claims.getStringClaim("pha"));
             return payload;
         } catch (ParseException e) {
+            log.error("failed to verifyPayload", e);
             throw new GatewayException(SystemErrorCode.PARAM_VAL_INVALID, "DPoP Proof");
         }
     }

@@ -70,6 +70,11 @@ public class EdgePrincipalContext extends PrincipalContext {
     private List<Long> roleIds;
 
     /**
+     * 匿名接入码 ID（仅 {@code ANONYMOUS} 会话）
+     */
+    private Long entryId;
+
+    /**
      * 当前请求是否已通过个人静态访问令牌（API Key）完成鉴权。
      *
      * <p>

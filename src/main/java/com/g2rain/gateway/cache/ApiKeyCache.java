@@ -1,6 +1,8 @@
 package com.g2rain.gateway.cache;
 
 
+
+import lombok.extern.slf4j.Slf4j;
 import com.g2rain.basis.enums.StaticTokenStatus;
 import com.g2rain.basis.vo.StaticAccessTokenContextVo;
 import com.g2rain.basis.vo.StaticAccessTokenHashVo;
@@ -38,6 +40,7 @@ import java.util.concurrent.TimeUnit;
  */
 @Service
 @AllArgsConstructor
+@Slf4j
 public class ApiKeyCache extends AbstractMessageStorage<String, StaticAccessTokenHashVo, String> {
 
     private static final Executor VIRTUAL_THREAD_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
@@ -114,6 +117,7 @@ public class ApiKeyCache extends AbstractMessageStorage<String, StaticAccessToke
         try {
             return shared.join();
         } catch (Exception e) {
+            log.error("failed to resolve", e);
             return ApiKeyResolveResult.invalid();
         }
     }
