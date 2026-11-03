@@ -57,7 +57,7 @@ documentation:
     - docs/design/member-api-permission-upgrade.md
   security: docs/security/security-boundaries.md
 validation:
-  reviewedAt: "2026-11-02"
+  reviewedAt: "2026-11-03"
   command: mvn -B -ntp verify
   status: enforcer-failed
   testsRun: 0
