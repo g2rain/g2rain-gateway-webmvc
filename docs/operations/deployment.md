@@ -41,7 +41,13 @@ docker run --rm -p 8083:8083 \
 
 ## CI 构建、测试与 GHCR 推送
 
-`.github/workflows/publish-ghcr.yml` 只在推送 `vMAJOR.MINOR.PATCH` Git tag 时触发；不会因分支推送、Pull Request 或手动触发而发布。它会严格校验 tag 格式、tag 提交已位于 `origin/main` 历史、同版本发布说明非空且存在、tag 与 Maven `project.version` 一致，然后执行 `mvn -B -ntp clean verify`。
+`.github/workflows/publish-ghcr.yml` 只在推送 `vMAJOR.MINOR.PATCH` Git tag 时触发；不会因分支推送、Pull Request 或手动触发而发布。它会严格校验 tag 格式、tag 提交已位于 `origin/main` 历史、同版本发布说明非空且存在、tag 与 Maven `project.version` 一致。
+
+构建依赖 `com.g2rain:g2rain-infra-api:1.0.0` 和 `com.g2rain:g2rain-basis-api:1.0.0`，CI 在 `$RUNNER_TEMP` 生成权限为 `600` 的临时 Maven settings，分别使用 `g2rain-infra`、`g2rain-basis` repository/server ID 访问对应 GitHub Maven Packages。settings 仅引用 `${env.GITHUB_ACTOR}` 与 `${env.GITHUB_TOKEN}`，不会写入项目 POM 或输出 Token；所有版本校验和构建 Maven 命令均显式使用该 settings：
+
+```bash
+mvn --settings "$MAVEN_SETTINGS" --batch-mode --no-transfer-progress -U clean verify
+```
 
 之后工作流用 `GITHUB_TOKEN` 登录 GHCR，使用同一 Dockerfile 一次构建并推送 `ghcr.io/g2rain/g2rain-gateway-webmvc:1.0.0` 和 `ghcr.io/g2rain/g2rain-gateway-webmvc:sha-<完整提交 SHA>`。不推送 `latest`，不创建 GitHub Release，不部署服务。只有两个 `docker push` 都成功后才会在 Actions Summary 标记发布成功；任一失败都会使步骤失败并保留错误日志。
 
@@ -64,3 +70,7 @@ docker pull ghcr.io/g2rain/g2rain-gateway-webmvc:1.0.0
 3. 等待 GHCR 工作流完成；验证两个标签均出现后，再按需设置包为 Public。
 
 本仓库只准备发布内容：不会由工作流创建 GitHub Release、修改包可见性或部署服务。
+
+## Maven API 制品
+
+本仓库没有 Maven Reactor 模块、独立 `*-api` 模块或 Startup 模块；根 POM 的唯一产物是可执行 `g2rain-gateway-webmvc` Jar。因此不创建 `publish-maven.yml`，也不从 GHCR 工作流调用 Maven API 发布。不能将上游的 `g2rain-infra-api`、`g2rain-basis-api` 重新发布到本仓 Maven Packages；它们仍由各自所属仓库发布和授权。
