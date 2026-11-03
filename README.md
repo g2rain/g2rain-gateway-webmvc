@@ -193,6 +193,8 @@ flowchart TD
 - 每次成功发布两个标签：`1.0.0` 和 `sha-<完整提交 SHA>`；不发布 `latest`。
 - 拉取示例：`docker pull ghcr.io/g2rain/g2rain-gateway-webmvc:1.0.0`。匿名拉取须在首次成功推送后由维护者将 GHCR 包设为 Public；完整权限、构建、运行和发布操作见[部署文档](docs/operations/deployment.md)。
 
+本仓库是单模块可执行服务，不提供独立 API Maven 制品或 GitHub Maven Packages 发布工作流；下游通过运行时网关契约协作。
+
 ## 代码质量与测试
 
 | 检查项 | 命令 | 说明 |
