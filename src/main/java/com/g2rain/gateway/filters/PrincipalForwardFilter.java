@@ -76,7 +76,7 @@ public class PrincipalForwardFilter implements HandlerFilterFunction<ServerRespo
      * @throws Exception 下游处理异常
      */
     @Override
-    public ServerResponse filter(@NonNull ServerRequest req, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
+    public @NonNull ServerResponse filter(@NonNull ServerRequest req, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
         String filterName = this.getClass().getSimpleName();
         ServerRequest.Builder builder = ServerRequest.from(req);
         builder.headers(this::stripPrincipalHeaders);

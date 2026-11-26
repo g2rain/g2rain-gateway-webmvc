@@ -50,7 +50,7 @@ public class ApiPermissionFilter implements HandlerFilterFunction<ServerResponse
     private final WhiteListResolver whiteListResolver;
 
     @Override
-    public ServerResponse filter(@NonNull ServerRequest request, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
+    public @NonNull ServerResponse filter(@NonNull ServerRequest request, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
         String filterName = this.getClass().getSimpleName();
 
         if (whiteListResolver.shouldExclude(filterName, request)) {

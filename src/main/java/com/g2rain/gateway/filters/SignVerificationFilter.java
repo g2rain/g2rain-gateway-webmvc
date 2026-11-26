@@ -15,7 +15,7 @@ import com.g2rain.gateway.utils.ReqParamCodec;
 import com.g2rain.gateway.whitelist.WhiteListResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
-import lombok.NonNull;
+import org.jspecify.annotations.NonNull;
 import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.function.HandlerFilterFunction;
@@ -70,7 +70,7 @@ public class SignVerificationFilter implements HandlerFilterFunction<ServerRespo
      * @throws Exception 摘要校验失败或下游处理异常
      */
     @Override
-    public ServerResponse filter(@NonNull ServerRequest req, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
+    public @NonNull ServerResponse filter(@NonNull ServerRequest req, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
         HttpServletRequest request = req.servletRequest();
         // 没有缓存, 说明出现意外情况, 不进行hash, 直接忽略
         if (!(request instanceof CachedBodyRequest cached)) {

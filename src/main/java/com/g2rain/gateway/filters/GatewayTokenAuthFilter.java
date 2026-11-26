@@ -82,7 +82,7 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
      * @throws Exception 鉴权失败或下游处理异常
      */
     @Override
-    public ServerResponse filter(@NonNull ServerRequest request, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
+    public @NonNull ServerResponse filter(@NonNull ServerRequest request, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
         // 如果命中白名单，则跳过当前 Filter 的处理，直接进入下一个 Filter
         String filterName = this.getClass().getSimpleName();
         if (whiteListResolver.shouldExclude(filterName, request)) {
@@ -173,10 +173,11 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
         context.setClientPublicKey(tokenPayload.getClientPublicKey());
         context.setRoleIds(tokenPayload.getRoleIds());
         context.setEntryId(tokenPayload.getEntryId());
+        context.setVisitorId(tokenPayload.getVisitorId());
     }
 
     /**
-     * ANONYMOUS 会话失败关闭：正数 organId / userId（访客）/ entryId，无账号、会员与角色，须有 scopes 与绑钥。
+     * ANONYMOUS 会话失败关闭：正数 organId / userId（访客）/ entryId，无账号、会员、访客关联与角色，须有 scopes 与绑钥。
      * <p>运营机构与租户机构都可开放匿名入口；但访客一律不享有管理员与运营机构特权，
      * {@code adminUser} / {@code adminCompany} 为 true 即拒绝，避免数据隔离被整体放行。</p>
      */
@@ -194,6 +195,7 @@ public class GatewayTokenAuthFilter implements HandlerFilterFunction<ServerRespo
             throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "entryId");
         }
         if (tokenPayload.getPassportId() != null || tokenPayload.getMemberId() != null
+            || tokenPayload.getVisitorId() != null
             || Collections.isNotEmpty(tokenPayload.getRoleIds())
             || tokenPayload.isAdminUser() || tokenPayload.isAdminCompany()) {
             throw new GatewayException(SystemErrorCode.UNAUTHORIZED, "ANONYMOUS");

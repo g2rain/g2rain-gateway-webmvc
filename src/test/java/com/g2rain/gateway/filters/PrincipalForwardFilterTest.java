@@ -45,6 +45,7 @@ class PrincipalForwardFilterTest {
         servletRequest.addHeader(PrincipalHeaders.MEMBER_ID.getUpper(), "forged-member");
         servletRequest.addHeader(PrincipalHeaders.ORGAN_ID.getUpper(), "forged-organ");
         servletRequest.addHeader(PrincipalHeaders.USER_ID.getUpper(), "forged-user");
+        servletRequest.addHeader(PrincipalHeaders.VISITOR_ID.getUpper(), "forged-visitor");
         ServerRequest request = ServerRequest.create(servletRequest, List.of());
 
         AtomicReference<ServerRequest> forwarded = new AtomicReference<>();
@@ -54,9 +55,10 @@ class PrincipalForwardFilterTest {
         };
 
         EdgePrincipalContext context = EdgePrincipalContext.of();
-        context.setSessionType(SessionType.MEMBER);
+        context.setSessionType(SessionType.USER);
         context.setOrganId(10001L);
-        context.setMemberId(9L);
+        context.setUserId(9L);
+        context.setVisitorId(71L);
 
         EdgePrincipalContextHolder.callWith(context, () -> {
             filter.filter(request, next);
@@ -64,11 +66,13 @@ class PrincipalForwardFilterTest {
         });
 
         ServerRequest out = forwarded.get();
-        assertEquals("9", out.headers().firstHeader(PrincipalHeaders.MEMBER_ID.getLower()));
+        assertEquals("9", out.headers().firstHeader(PrincipalHeaders.USER_ID.getLower()));
         assertEquals("10001", out.headers().firstHeader(PrincipalHeaders.ORGAN_ID.getLower()));
-        assertNull(out.headers().firstHeader(PrincipalHeaders.USER_ID.getLower()));
-        assertEquals(1, out.headers().header(PrincipalHeaders.MEMBER_ID.getLower()).size());
+        assertEquals("71", out.headers().firstHeader(PrincipalHeaders.VISITOR_ID.getLower()));
+        assertNull(out.headers().firstHeader(PrincipalHeaders.MEMBER_ID.getLower()));
+        assertEquals(1, out.headers().header(PrincipalHeaders.USER_ID.getLower()).size());
         assertEquals(1, out.headers().header(PrincipalHeaders.ORGAN_ID.getLower()).size());
+        assertEquals(1, out.headers().header(PrincipalHeaders.VISITOR_ID.getLower()).size());
     }
 
     @Test
@@ -81,6 +85,7 @@ class PrincipalForwardFilterTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest("GET", "/public");
         servletRequest.addHeader(PrincipalHeaders.MEMBER_ID.getUpper(), "forged-member");
         servletRequest.addHeader(PrincipalHeaders.ORGAN_ID.getUpper(), "forged-organ");
+        servletRequest.addHeader(PrincipalHeaders.VISITOR_ID.getUpper(), "forged-visitor");
         ServerRequest request = ServerRequest.create(servletRequest, List.of());
 
         AtomicReference<ServerRequest> forwarded = new AtomicReference<>();
@@ -96,5 +101,7 @@ class PrincipalForwardFilterTest {
         assertNull(out.headers().firstHeader(PrincipalHeaders.ORGAN_ID.getLower()));
         assertNull(out.headers().firstHeader(PrincipalHeaders.MEMBER_ID.getUpper()));
         assertNull(out.headers().firstHeader(PrincipalHeaders.ORGAN_ID.getUpper()));
+        assertNull(out.headers().firstHeader(PrincipalHeaders.VISITOR_ID.getLower()));
+        assertNull(out.headers().firstHeader(PrincipalHeaders.VISITOR_ID.getUpper()));
     }
 }

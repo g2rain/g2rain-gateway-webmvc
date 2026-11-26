@@ -3,7 +3,6 @@ package com.g2rain.gateway.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -57,7 +56,6 @@ import java.util.Set;
  */
 @Data
 @Component
-@RefreshScope
 @ConfigurationProperties(prefix = "gateway-white-list")
 public class GatewayWhiteList {
 

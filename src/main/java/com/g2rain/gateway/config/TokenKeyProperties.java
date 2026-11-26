@@ -3,7 +3,6 @@ package com.g2rain.gateway.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -15,7 +14,7 @@ import java.util.List;
  * <p>
  * 用于通过 Nacos 或本地配置文件加载 Token 的公钥和私钥信息，
  * 支持多个密钥，可通过 {@code active} 字段标记当前激活的密钥。
- * 配置可动态刷新，结合 {@link RefreshScope} 使用。
+ * 配置可动态刷新：Nacos 变更后由 Spring Cloud 自动重新绑定。
  * </p>
  * <p>
  * 示例 YAML 配置：
@@ -42,7 +41,6 @@ import java.util.List;
  */
 @Data
 @Component
-@RefreshScope
 @ConfigurationProperties(prefix = "token")
 public class TokenKeyProperties {
 

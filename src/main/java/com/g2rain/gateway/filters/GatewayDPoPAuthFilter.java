@@ -90,7 +90,7 @@ public class GatewayDPoPAuthFilter implements HandlerFilterFunction<ServerRespon
      * @throws Exception DPoP 校验失败或下游处理异常
      */
     @Override
-    public ServerResponse filter(@NonNull ServerRequest request, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
+    public @NonNull ServerResponse filter(@NonNull ServerRequest request, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
         // 如果命中白名单，则跳过当前 Filter 的处理，直接进入下一个 Filter
         String filterName = this.getClass().getSimpleName();
         if (whiteListResolver.shouldExclude(filterName, request)) {

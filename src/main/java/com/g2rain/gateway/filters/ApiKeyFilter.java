@@ -57,7 +57,7 @@ public class ApiKeyFilter implements HandlerFilterFunction<ServerResponse, Serve
     private final Tracer tracer;
 
     @Override
-    public ServerResponse filter(@NonNull ServerRequest request, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
+    public @NonNull ServerResponse filter(@NonNull ServerRequest request, @NonNull HandlerFunction<ServerResponse> next) throws Exception {
         String filterName = getClass().getSimpleName();
         if (whiteListResolver.shouldExclude(filterName, request)) {
             return next.handle(request);
